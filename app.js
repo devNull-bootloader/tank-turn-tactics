@@ -17,7 +17,12 @@ function loadEnvDefaults() {
 
         if (!process.env.PORT) process.env.PORT = '3000';
         if (!process.env.SESSION_SECRET) process.env.SESSION_SECRET = 'dev-session-secret';
-        if (!process.env.ADMIN_EMAIL) process.env.ADMIN_EMAIL = 'admin@example.com';
+        if (!process.env.ADMIN_USERNAME && !process.env.ADMIN_EMAIL) {
+            process.env.ADMIN_USERNAME = 'admin';
+        }
+        if (!process.env.ADMIN_USERNAME && process.env.ADMIN_EMAIL) {
+            process.env.ADMIN_USERNAME = String(process.env.ADMIN_EMAIL).split('@')[0] || 'admin';
+        }
         if (!process.env.ADMIN_PASSWORD) process.env.ADMIN_PASSWORD = 'admin';
         if (!process.env.INTERVAL_MODE) process.env.INTERVAL_MODE = 'hour';
     }
@@ -25,35 +30,41 @@ function loadEnvDefaults() {
 
 loadEnvDefaults();
 
+const app = express();
 let bootPromise = null;
+let readyApp = false;
 
-async function createApp() {
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
+// If an older rewrite sent traffic to /api/*, strip the prefix so routes match.
+app.use((req, res, next) => {
+    if (req.url === '/api') {
+        req.url = '/';
+    } else if (req.url.startsWith('/api/')) {
+        req.url = req.url.slice(4) || '/';
+    }
+    next();
+});
+
+app.use(express.urlencoded({ extended: true }));
+app.use(express.json());
+
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/css', express.static(path.join(__dirname, 'public/css')));
+app.use('/js', express.static(path.join(__dirname, 'public/js')));
+app.use('/assets', express.static(path.join(__dirname, 'public/assets')));
+
+async function boot() {
     if (!process.env.SESSION_SECRET) {
         throw new Error('SESSION_SECRET environment variable is required');
     }
-
-    const app = express();
-
-    app.set('view engine', 'ejs');
-    app.set('views', path.join(__dirname, 'views'));
-
-    app.use(express.urlencoded({ extended: true }));
-    app.use(express.json());
-
-    // Prefer CDN for public/ on Vercel; still mount as fallback so relative asset
-    // URLs never fall through to the Express 404 ("Whoops, not found!").
-    app.use(express.static(path.join(__dirname, 'public')));
-    app.use('/css', express.static(path.join(__dirname, 'public/css')));
-    app.use('/js', express.static(path.join(__dirname, 'public/js')));
-    app.use('/assets', express.static(path.join(__dirname, 'public/assets')));
 
     const { dbUri, dbOptions, mode } = await require('./config/database.js')(app);
     const { useSupabase } = require('./libs/db_mode');
 
     let sessionStore;
     if (useSupabase()) {
-        // Use MemoryStore on Vercel: Supabase direct DB hosts are often IPv6-only and
-        // unreachable from Vercel functions. App data goes through the Supabase REST API.
         sessionStore = new session.MemoryStore();
         console.warn('[session] Using MemoryStore with Supabase REST data layer');
     } else {
@@ -67,13 +78,13 @@ async function createApp() {
     app.use(session({
         secret: process.env.SESSION_SECRET,
         resave: false,
-        saveUninitialized: true,
+        saveUninitialized: false,
         store: sessionStore,
         cookie: {
             maxAge: 1000 * 60 * 60 * 24 * 14,
             httpOnly: true,
-            // Secure cookies break plain HTTP local/dev and some Vercel preview setups
-            secure: process.env.COOKIE_SECURE === 'true'
+            secure: process.env.COOKIE_SECURE === 'true',
+            sameSite: 'lax'
         }
     }));
 
@@ -97,48 +108,70 @@ async function createApp() {
             vercel: process.env.VERCEL === '1'
         });
     });
+    // Alias so /health also works if /api was stripped
+    app.get('/health', async (req, res) => {
+        res.redirect(307, '/api/health');
+    });
 
     require('./routes')(app);
 
     app.use((err, req, res, next) => {
-        console.log(err);
-        next(err);
+        console.error('[app] request error:', err);
+        if (res.headersSent) {
+            return next(err);
+        }
+        const wantsHtml = req.accepts('html');
+        if (wantsHtml) {
+            return res.status(500).send('Something went wrong. Please try again.');
+        }
+        return res.status(500).json({ error: String(err && err.message ? err.message : err) });
     });
 
     app.use(function (req, res) {
         res.status(404).send('Whoops, not found!');
     });
 
-    // node-schedule only works on long-lived processes
     if (process.env.VERCEL !== '1' && process.env.DISABLE_GAME_RUNNER !== 'true') {
         require('./config/game_runner.js');
     }
 
+    readyApp = true;
     return app;
 }
 
-function getApp() {
+function ensureBooted() {
     if (!bootPromise) {
-        bootPromise = createApp().catch(err => {
+        bootPromise = boot().catch(err => {
             bootPromise = null;
+            readyApp = false;
             throw err;
         });
     }
     return bootPromise;
 }
 
-// Vercel / serverless handler — boot once, then delegate to Express
-async function handler(req, res) {
-    const app = await getApp();
-    return app(req, res);
-}
+// Gate every request until async DB/session wiring is ready
+app.use(async (req, res, next) => {
+    try {
+        if (!readyApp) {
+            await ensureBooted();
+        }
+        next();
+    } catch (err) {
+        console.error('[app] Boot failed:', err);
+        res.status(503).send('Service unavailable');
+    }
+});
 
-module.exports = handler;
-module.exports.getApp = getApp;
+module.exports = app;
+module.exports.getApp = async () => {
+    await ensureBooted();
+    return app;
+};
 
 if (require.main === module) {
-    getApp()
-        .then(app => {
+    ensureBooted()
+        .then(() => {
             if (!process.env.PORT) {
                 throw new Error('PORT environment variable is required');
             }

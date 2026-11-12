@@ -141,7 +141,7 @@ module.exports.createGameRequest = async (req, res) => {
         await new Player({
             user_id: req.user.id,
             game_id: gameId,
-            name: req.body.displayName !== '' ? req.body.displayName : req.user.email,
+            name: req.body.displayName !== '' ? req.body.displayName : require('./AuthController.js').displayName(req.user),
             actions: gameCfg.actionsPerInterval
         }).save()
 
@@ -160,7 +160,7 @@ module.exports.createGameRequest = async (req, res) => {
 
 function createPlayerObject(name, game, user, data=[]) {
     return {
-        name: name !== '' ? name : user.email,
+        name: name !== '' ? name : require('./AuthController.js').displayName(user),
         user_id: user.id,
         game_id: game._id,
         actions: game.actionsPerInterval,

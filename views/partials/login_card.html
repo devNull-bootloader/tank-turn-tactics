@@ -6,18 +6,26 @@
             <script>
                 const urlParams = new URLSearchParams(window.location.search);
                 const error = urlParams.get('error')
-                if (error) document.querySelector("p.error").innerHTML = "Invalid username or password!"
+                if (error === 'guest') {
+                    document.querySelector("p.error").innerHTML = "Could not start guest session. Try again."
+                } else if (error) {
+                    document.querySelector("p.error").innerHTML = "Invalid username or password!"
+                }
             </script>
 
-            <label for="email">E-mail: </label>
-            <input type="email" id="email" name="email" required/>
+            <label for="username">Username: </label>
+            <input type="text" id="username" name="username" autocomplete="username" minlength="3" maxlength="24" required/>
 
             <br/>
 
             <label for="password">Password: </label>
-            <input type="password" id="password" name="password" required/>
+            <input type="password" id="password" name="password" autocomplete="current-password" required/>
         </div>
         <button type="submit">Login</button>
+    </form>
+
+    <form action="/auth/guest" method="post" style="margin-top: 12px;">
+        <button type="submit">Continue as Guest</button>
     </form>
 
     <a href="/register">Register an account</a>

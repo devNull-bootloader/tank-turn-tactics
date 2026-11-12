@@ -169,27 +169,43 @@ function thenable(executor) {
     return api;
 }
 
+function mapUserRow(row) {
+    const doc = mapRow(row);
+    if (!doc) return null;
+    doc.username = row.username || (row.email ? String(row.email).split('@')[0] : null);
+    doc.guest = !!row.guest;
+    doc.email = row.email || null;
+    // passport / templates expect .id
+    doc.id = toId(doc._id);
+    return doc;
+}
+
 const User = function User(data = {}) {
     if (!(this instanceof User)) return new User(data);
     const id = asId(data._id || data.id || randomUUID());
     Object.assign(this, {
         _id: id,
-        email: data.email,
+        id: toId(id),
+        username: data.username,
+        email: data.email || null,
         hash: data.hash,
         salt: data.salt,
+        guest: !!data.guest,
         admin: !!data.admin
     });
     this.save = async () => {
         const { data: row, error } = await db().from('users').upsert({
             id: toId(this._id),
+            username: this.username,
             email: this.email,
             hash: this.hash,
             salt: this.salt,
+            guest: !!this.guest,
             admin: !!this.admin,
             updated_at: new Date().toISOString()
         }).select('*').single();
         if (error) throw error;
-        Object.assign(this, mapRow(row));
+        Object.assign(this, mapUserRow(row));
         return this;
     };
 };
@@ -197,14 +213,17 @@ const User = function User(data = {}) {
 User.findOne = function findOne(query = {}, callback) {
     const result = thenable(async () => {
         let q = db().from('users').select('*');
+        if (query.username) q = q.eq('username', query.username);
         if (query.email) q = q.eq('email', query.email);
         if (query._id || query.id) q = q.eq('id', toId(query._id || query.id));
         const { data, error } = await q.maybeSingle();
         if (error) throw error;
-        return attachSave(mapRow(data), 'users', (d) => ({
+        return attachSave(mapUserRow(data), 'users', (d) => ({
+            username: d.username,
             email: d.email,
             hash: d.hash,
             salt: d.salt,
+            guest: !!d.guest,
             admin: !!d.admin,
             updated_at: new Date().toISOString()
         }));

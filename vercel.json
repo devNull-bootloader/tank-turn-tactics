@@ -1,9 +1,3 @@
 {
-  "version": 2,
-  "rewrites": [
-    {
-      "source": "/((?!css/|js/|assets/).*)",
-      "destination": "/api"
-    }
-  ]
+  "version": 2
 }

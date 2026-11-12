@@ -6,10 +6,18 @@ if (useSupabase) {
     const mongoose = require("mongoose");
 
     const userSchema = new mongoose.Schema({
-        email: {
+        username: {
             type: String,
             required: true,
-            unique: true
+            unique: true,
+            trim: true,
+            lowercase: true
+        },
+        // Kept optional for older records / display fallbacks
+        email: {
+            type: String,
+            required: false,
+            sparse: true
         },
         hash: {
             type: String,
@@ -18,6 +26,10 @@ if (useSupabase) {
         salt: {
             type: String,
             required: true
+        },
+        guest: {
+            type: Boolean,
+            default: false
         },
         admin: {
             type: Boolean,

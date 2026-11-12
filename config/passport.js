@@ -1,29 +1,42 @@
 const passport = require('passport');
 const LocalStrategy = require('passport-local').Strategy;
 const User = require("../models/UserModel.js");
-require('../libs/password_utils.js')
 const { validPassword } = require("../libs/password_utils.js");
+const { normalizeUsername } = require("../controllers/AuthController.js");
 
 const fieldNames = {
-    usernameField: 'email',
+    usernameField: 'username',
     passwordField: 'password'
 }
 
 /**
- *
- * @param email
+ * @param username
  * @param password
  * @param done Finished callback
  */
-function verifyCallback(email, password, done) {
-    // Find user in database
-    User.findOne({ email: email }, async function (err, user) {
-        // If err
+function verifyCallback(username, password, done) {
+    const normalized = normalizeUsername(username);
+
+    User.findOne({ username: normalized }, async function (err, user) {
         if (err) { console.log("DB Error"); return done(err); }
-        // If user not found
+
+        // Backward-compatible: older accounts may still only have email
+        if (!user && username && String(username).includes('@')) {
+            try {
+                user = await User.findOne({ email: String(username).trim().toLowerCase() });
+            } catch (_) {
+                user = null;
+            }
+        }
+
         if (!user) {
             console.log("Incorrect username")
             return done(null, false, { message: 'Incorrect username.' });
+        }
+
+        if (user.guest) {
+            console.log("Guest accounts cannot password-login")
+            return done(null, false, { message: 'Guest account.' });
         }
 
         validPassword(password, user.hash, user.salt)
@@ -48,7 +61,8 @@ const strategy = new LocalStrategy(fieldNames, verifyCallback)
 passport.use(strategy)
 
 passport.serializeUser((user, done) => {
-    done(null, user.id)
+    const id = user && (user.id || (user._id && user._id.toString ? user._id.toString() : user._id));
+    done(null, id)
 })
 
 passport.deserializeUser((uid, done) => {
