@@ -8,6 +8,9 @@ const ActionSchema = new mongoose.Schema({
     // Attack/Give
     target_id: mongoose.Types.ObjectId,
     killed: { type: Boolean, default: false },
+    bountyClaimed: { type: Boolean, default: false },
+    // Attack / give / upgrade amount
+    count: { type: Number },
 
     // Move
     positions: [{

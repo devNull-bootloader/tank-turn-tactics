@@ -33,6 +33,13 @@ const playerSchema = new mongoose.Schema({
         default: "#00ffc3"
     },
 
+    // Daily bounty target (doBounty games)
+    bounty_target: {
+        type: mongoose.Types.ObjectId,
+        ref: "Player",
+        default: null
+    },
+
     // Votes
     vote_jury: {
         type: mongoose.Types.ObjectId,

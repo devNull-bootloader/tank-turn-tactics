@@ -12,6 +12,7 @@
     <span id="gameTime"></span>
     <span id="actionInterval"></span>
     <span id="actionsPerInterval"></span>
+    <span id="bountyTarget"></span>
     <span>│</span>
     <span class="options">Range Mode:</span><a id="rangeMode" style="display: inline-block"></a>
     <span class="options">Range Display:</span><a id="rangeDisplay" style="display: inline-block"></a>
@@ -56,6 +57,15 @@
     </div>
     <div class="upgrade" data-upgrade="range" data-cost=1>
         <span id="range"></span>
+        <span class="actionsToAdd"></span>
+        <span>
+            <a class="minus">-</a>
+            <a class="plus">+</a>
+            <span>[1]</span>
+        </span>
+    </div>
+    <div class="upgrade" data-upgrade="sight" data-cost=1>
+        <span id="sight"></span>
         <span class="actionsToAdd"></span>
         <span>
             <a class="minus">-</a>
@@ -196,6 +206,7 @@
                 updateTanks(false, forced)
                 updateInfo()
                 updateLogs(forced)
+                updateBountyLabel()
                 if (forced) {
                     actionGuis.forEach(gui => gui.init())
                 }
@@ -423,6 +434,7 @@
 
         document.querySelector('#health').innerHTML = "Health: " + player.health
         document.querySelector('#range').innerHTML = "Range: " + player.range
+        document.querySelector('#sight').innerHTML = "Sight: " + (player.sight ?? 1)
     }
 
     const colorPickerInput = document.querySelector("#colorBox")
@@ -648,6 +660,17 @@
 
     statsPanel.querySelector('#actionInterval').innerHTML = "Interval Time: " + game.turnTime + " hrs";
     statsPanel.querySelector('#actionsPerInterval').innerHTML = "Actions per interval: " + game.actionsPerInterval;
+
+    function updateBountyLabel() {
+        const bountyEl = statsPanel.querySelector('#bountyTarget');
+        if (!game.doBounty) {
+            bountyEl.innerHTML = '';
+            return;
+        }
+        const bountyName = USER_PLAYER && USER_PLAYER.bounty_target_name;
+        bountyEl.innerHTML = bountyName ? `│ Bounty: ${shortenName(bountyName)}` : '│ Bounty: —';
+    }
+    updateBountyLabel();
 
     // ---------------------------------------- VOTE PANEL ------------------------------------------------------------
 

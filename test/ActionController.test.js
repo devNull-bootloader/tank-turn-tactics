@@ -262,8 +262,12 @@ describe("ActionController: Immediate", () => {
 const defaultGameQueued = {
     name: "Test game",
     size: { width: 10, height: 10 },
+    creator_id: mongoose.Types.ObjectId(),
     doActionQueue: true,
-    actions: []
+    doBroadcastAction: false,
+    doBounty: true,
+    actions: [],
+    actionLog: []
 }
 
 describe("ActionController: Queue", () => {
@@ -278,15 +282,114 @@ describe("ActionController: Queue", () => {
         let req;
 
         beforeEach(async () => {
-            mainPlayer = await new Player(defaultPlayerData).save();
+            mainPlayer = await new Player({
+                ...defaultPlayerData,
+                game_id: game._id,
+                user_id: mongoose.Types.ObjectId(),
+                actions: 3,
+                position: { x: 0, y: 0 }
+            }).save();
 
             req = {
                 player: mainPlayer,
                 game: game,
-                params: { x: 10, y: 10}
+                body: {
+                    positions: [{ x: 1, y: 0 }]
+                }
             }
         })
 
-        it.todo("Test queued type actions")
+        it("should queue a move and reserve action points", async () => {
+            const { res } = getMockRes();
+
+            await moveReq(req, res);
+
+            const updatedGame = await Game.findById(game._id);
+            const updatedPlayer = await Player.findById(mainPlayer._id);
+
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(updatedGame.actions).toHaveLength(1);
+            expect(updatedGame.actions[0].action).toBe('move');
+            expect(updatedPlayer.actions).toBe(2);
+            expect(updatedPlayer.position.x).toBe(0);
+        })
+
+        it("should reject queued moves when the player lacks action points", async () => {
+            req.player.actions = 0;
+            await req.player.save();
+
+            const { res } = getMockRes();
+            await moveReq(req, res);
+
+            expect(res.status).toHaveBeenCalledWith(403);
+            const updatedGame = await Game.findById(game._id);
+            expect(updatedGame.actions).toHaveLength(0);
+        })
+    })
+
+    describe("attack", () => {
+        it("should queue an attack with count", async () => {
+            const attacker = await new Player({
+                ...defaultPlayerData,
+                game_id: game._id,
+                user_id: mongoose.Types.ObjectId(),
+                position: { x: 0, y: 0 },
+                actions: 3
+            }).save();
+            const target = await new Player({
+                ...defaultPlayerData,
+                game_id: game._id,
+                user_id: mongoose.Types.ObjectId(),
+                position: { x: 0, y: 1 }
+            }).save();
+
+            const { res } = getMockRes();
+            await attackReq({
+                player: attacker,
+                game,
+                params: { targetId: target._id, count: 2 }
+            }, res);
+
+            const updatedGame = await Game.findById(game._id);
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(updatedGame.actions[0].action).toBe('attack');
+            expect(updatedGame.actions[0].count).toBe(2);
+            expect((await Player.findById(attacker._id)).actions).toBe(1);
+        })
+    })
+})
+
+describe("ActionController: Bounty", () => {
+    it("should clear bounty_target when the bounty kill lands", async () => {
+        const game = await new Game({
+            ...defaultGameImmediate,
+            doBounty: true,
+            creator_id: mongoose.Types.ObjectId()
+        }).save();
+
+        const target = await new Player({
+            ...defaultPlayerData,
+            game_id: game._id,
+            user_id: mongoose.Types.ObjectId(),
+            position: { x: 0, y: 1 },
+            health: 1,
+            actions: 4
+        }).save();
+
+        const attacker = await new Player({
+            ...defaultPlayerData,
+            game_id: game._id,
+            user_id: mongoose.Types.ObjectId(),
+            position: { x: 0, y: 0 },
+            actions: 2,
+            bounty_target: target._id
+        }).save();
+
+        const { attack } = require("../controllers/ActionController.js");
+        const result = await attack(game, attacker, { target_id: target._id, count: 1 });
+
+        expect(result.killed).toBe(true);
+        expect(result.bountyClaimed).toBe(true);
+        expect((await Player.findById(attacker._id)).bounty_target).toBeNull();
     })
 })
