@@ -1,8 +1,9 @@
-const mongoose = require('mongoose');
+const { useSupabase } = require('../libs/db_mode');
 const User = require('../models/UserModel.js')
 const { createUser } = require("../controllers/AuthController.js");
 
-mongoose.Promise = global.Promise;
+let memoryServer = null;
+let connectPromise = null;
 
 const dbOptions = {
     useNewUrlParser: true,
@@ -14,72 +15,91 @@ const dbOptions = {
     }
 }
 
-let memoryServer = null;
-
-/**
- * Resolve the MongoDB URI, starting an in-memory server in development when DB_URI is unset.
- * @return {Promise<string>}
- */
-async function resolveDbUri() {
-    if (process.env.DB_URI) {
-        return process.env.DB_URI;
-    }
-
-    if (process.env.NODE_ENV !== 'development') {
-        throw new Error('DB_URI environment variable is required outside development');
-    }
-
-    const { MongoMemoryServer } = require('mongodb-memory-server');
-    // MongoDB >= 6.0.4 is required on Ubuntu 22.04+/24.04 (OpenSSL 3).
-    memoryServer = await MongoMemoryServer.create({
-        binary: { version: '7.0.14' }
-    });
-    const uri = memoryServer.getUri();
-    console.log('[mongodb] No DB_URI set; using in-memory MongoDB for development');
-    return uri;
+function allowMemoryFallback() {
+    return process.env.NODE_ENV === 'development'
+        || process.env.USE_MEMORY_DB === 'true'
+        || process.env.VERCEL === '1';
 }
 
-/**
- * Connects to the mongoose database, and emits ready when connected. Retries if failed.
- * @param app
- * @param {string} dbUri
- * @param {number} timeout Timeout in ms
- */
-function connectToDB(app, dbUri, timeout) {
-    mongoose.connect(dbUri, dbOptions)
-        .then(m => {
-            console.log(`[mongodb] Connected to database ${m.connection.name}`);
+async function ensureAdmin() {
+    if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) return;
+    try {
+        const existing = await User.findOne({ email: process.env.ADMIN_EMAIL });
+        if (!existing) {
+            await createUser(process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD, true);
+            console.log('Admin created!');
+        }
+    } catch (err) {
+        console.error('[db] Admin setup failed:', err.message);
+    }
+}
 
-            // Set admin user when credentials are configured
-            if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
-                User.findOne({ email: process.env.ADMIN_EMAIL })
-                    .then(player => {
-                        if (!player) {
-                            createUser(process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD, true)
-                                .then(() => console.log("Admin created!"))
-                                .catch(err => console.error('[mongodb] Failed to create admin:', err.message))
-                        }
-                    })
-                    .catch(err => console.error('[mongodb] Admin lookup failed:', err.message))
+async function ensureConnected(app) {
+    if (useSupabase()) {
+        if (!connectPromise) {
+            connectPromise = (async () => {
+                const { pingSupabase } = require('./supabase.js');
+                const status = await pingSupabase();
+                if (!status.ok) {
+                    throw new Error('Supabase unavailable: ' + status.message);
+                }
+                console.log('[supabase] Connected');
+                await ensureAdmin();
+                if (app && typeof app.emit === 'function') app.emit('ready');
+            })().catch(err => {
+                connectPromise = null;
+                throw err;
+            });
+        }
+        await connectPromise;
+        return { dbUri: process.env.SUPABASE_URL, dbOptions: {}, mode: 'supabase' };
+    }
+
+    const mongoose = require('mongoose');
+    mongoose.Promise = global.Promise;
+
+    if (mongoose.connection.readyState === 1) {
+        return { dbUri: process.env.DB_URI || memoryServer?.getUri?.(), dbOptions, mode: 'mongo' };
+    }
+
+    if (!connectPromise) {
+        connectPromise = (async () => {
+            let dbUri = process.env.DB_URI;
+            if (!dbUri) {
+                if (!allowMemoryFallback()) {
+                    throw new Error('DB_URI environment variable is required outside development');
+                }
+                if (!process.env.HOME || process.env.VERCEL === '1') {
+                    process.env.HOME = '/tmp';
+                }
+                process.env.MONGOMS_DOWNLOAD_DIR = process.env.MONGOMS_DOWNLOAD_DIR || '/tmp/mongodb-binaries';
+                const { MongoMemoryServer } = require('mongodb-memory-server');
+                memoryServer = await MongoMemoryServer.create({
+                    binary: { version: '7.0.14' }
+                });
+                dbUri = memoryServer.getUri();
+                console.log('[mongodb] No DB_URI set; using in-memory MongoDB');
             }
 
-            app.emit('ready')
-        })
-        .catch(err => {
-            console.error('[mongodb] ' + err + ', retrying in ' + timeout / 1000 + ' seconds')
-            setTimeout(() => connectToDB(app, dbUri, timeout), timeout)
+            await mongoose.connect(dbUri, dbOptions);
+            console.log(`[mongodb] Connected to database ${mongoose.connection.name}`);
+            await ensureAdmin();
+            if (app && typeof app.emit === 'function') app.emit('ready');
+            return dbUri;
+        })().catch(err => {
+            connectPromise = null;
+            throw err;
         });
+    }
+
+    const dbUri = await connectPromise;
+    return { dbUri: process.env.DB_URI || dbUri || memoryServer?.getUri?.(), dbOptions, mode: 'mongo' };
 }
 
-/**
- * @param app
- * @return {Promise<{dbUri: string, dbOptions: object}>}
- */
 module.exports = async function (app) {
-    const dbUri = await resolveDbUri();
-    connectToDB(app, dbUri, 5000)
-
-    return { dbUri, dbOptions }
+    return ensureConnected(app);
 };
 
+module.exports.ensureConnected = ensureConnected;
 module.exports.getMemoryServer = () => memoryServer;
+module.exports.useSupabase = useSupabase;

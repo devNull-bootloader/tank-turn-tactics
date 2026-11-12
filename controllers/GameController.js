@@ -1,7 +1,7 @@
 const Game = require('../models/GameModel.js')
 const Player = require('../models/PlayerModel.js')
 const { assignLocation, assignBounties, checkRange, coerceBoolean } = require("../libs/game_utils.js");
-const mongoose = require("mongoose");
+const ObjectId = require('../libs/oid');
 
 // Base controllers
 
@@ -294,7 +294,7 @@ module.exports.getPlayers = async function (req, res) {
 // GET routes
 
 async function getUserGames(userId) {
-    const userPlayerList = await Player.find({ user_id: mongoose.Types.ObjectId(userId) })
+    const userPlayerList = await Player.find({ user_id: ObjectId(userId) })
 
     const gameList = await Promise.all(
         userPlayerList.map(player => Game.findById(player.game_id).lean())
@@ -350,7 +350,7 @@ async function joinGamesWithPlayer(gameObjects, userId) {
         async game => {
 
             game.players = [];
-            game.players = sanitizePlayers(await Player.find({ game_id: mongoose.Types.ObjectId(game._id) }).lean(), userId );
+            game.players = sanitizePlayers(await Player.find({ game_id: ObjectId(game._id) }).lean(), userId );
 
             return game;
 
