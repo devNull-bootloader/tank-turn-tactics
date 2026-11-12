@@ -7,7 +7,10 @@ jest.setTimeout(60000);
 
 module.exports = class DBHandler {
     static async init() {
-        const mongoMemoryServer = await MongoMemoryServer.create();
+        // MongoDB >= 6.0.4 is required on Ubuntu 22.04+/24.04 (OpenSSL 3).
+        const mongoMemoryServer = await MongoMemoryServer.create({
+            binary: { version: '7.0.14' }
+        });
         return new DBHandler(mongoMemoryServer);
     }
 
@@ -28,12 +31,20 @@ module.exports = class DBHandler {
     }
 
     closeDatabase = async () => {
-        await mongoose.connection.dropDatabase();
-        await mongoose.connection.close();
-        await this.mongoMemoryServer.stop();
+        if (mongoose.connection.readyState !== 0) {
+            await mongoose.connection.dropDatabase();
+            await mongoose.connection.close();
+        }
+        if (this.mongoMemoryServer) {
+            await this.mongoMemoryServer.stop();
+        }
     }
 
     clearDatabase = async () => {
+        if (mongoose.connection.readyState === 0) {
+            return;
+        }
+
         const collections = mongoose.connection.collections;
 
         for (const key in collections) {
@@ -52,10 +63,18 @@ module.exports = class DBHandler {
         });
 
         // Clear all test data after every test.
-        afterEach(async () => await dbHandler.clearDatabase());
+        afterEach(async () => {
+            if (dbHandler) {
+                await dbHandler.clearDatabase();
+            }
+        });
 
         // Remove and close the db and server.
-        afterAll(async () => await dbHandler.closeDatabase());
+        afterAll(async () => {
+            if (dbHandler) {
+                await dbHandler.closeDatabase();
+            }
+        });
     }
 }
 
