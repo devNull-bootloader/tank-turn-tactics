@@ -37,6 +37,12 @@ async function resolveDbUri() {
         throw new Error('DB_URI environment variable is required outside development');
     }
 
+    // Vercel sandboxes have no writable $HOME — keep MMS artifacts under /tmp.
+    if (!process.env.HOME || process.env.VERCEL === '1') {
+        process.env.HOME = '/tmp';
+    }
+    process.env.MONGOMS_DOWNLOAD_DIR = process.env.MONGOMS_DOWNLOAD_DIR || '/tmp/mongodb-binaries';
+
     const { MongoMemoryServer } = require('mongodb-memory-server');
     // MongoDB >= 6.0.4 is required on Ubuntu 22.04+/24.04 (OpenSSL 3).
     memoryServer = await MongoMemoryServer.create({
