@@ -6,9 +6,10 @@ const { checkRange, checkGrid } = require('../libs/game_utils.js')
 const Player = require("../models/PlayerModel.js");
 
 function isAdjacent(pos1, pos2) {
-    return (Math.abs(pos1.x - pos2.x) === 1 || Math.abs(pos1.y - pos2.y) === 1)
-        && !(Math.abs(pos1.x - pos2.x) === 1 && Math.abs(pos1.y - pos2.y) === 1) // XOR
-        && !(pos1.x === pos2.x && pos1.y === pos2.y) // Not the same point
+    // Cardinal adjacency only (Manhattan distance of 1) — not diagonals or farther cells
+    const dx = Math.abs(pos1.x - pos2.x);
+    const dy = Math.abs(pos1.y - pos2.y);
+    return dx + dy === 1;
 }
 
 /**
