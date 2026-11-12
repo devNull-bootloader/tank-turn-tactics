@@ -40,12 +40,12 @@ async function createApp() {
     app.use(express.urlencoded({ extended: true }));
     app.use(express.json());
 
-    // On Vercel, files in public/ are served from the CDN automatically.
-    if (process.env.VERCEL !== '1') {
-        app.use(express.static(path.join(__dirname, 'public')));
-        app.use('/css', express.static(path.join(__dirname, 'public/css')));
-        app.use('/js', express.static(path.join(__dirname, 'public/js')));
-    }
+    // Prefer CDN for public/ on Vercel; still mount as fallback so relative asset
+    // URLs never fall through to the Express 404 ("Whoops, not found!").
+    app.use(express.static(path.join(__dirname, 'public')));
+    app.use('/css', express.static(path.join(__dirname, 'public/css')));
+    app.use('/js', express.static(path.join(__dirname, 'public/js')));
+    app.use('/assets', express.static(path.join(__dirname, 'public/assets')));
 
     const { dbUri, dbOptions, mode } = await require('./config/database.js')(app);
     const { useSupabase } = require('./libs/db_mode');

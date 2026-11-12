@@ -1,6 +1,9 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/(.*)", "destination": "/api" }
+    {
+      "source": "/((?!css/|js/|assets/).*)",
+      "destination": "/api"
+    }
   ]
 }

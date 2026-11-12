@@ -20,18 +20,27 @@ if (!process.env.JEST_WORKER_ID) {
         // Get all started games
         const allGames = await Game.find({ hasStarted: true });
 
-        // Distribute actions / resolve queues
+        // Distribute actions / resolve queues — isolate per-game failures
         console.log("[app] Actions distributed! - " + new Date());
-        await Promise.all(allGames.map(performActions));
+        await Promise.all(allGames.map(async (game) => {
+            try {
+                await performActions(game);
+            } catch (err) {
+                console.error(`[app] Failed processing game ${game && game._id}:`, err);
+            }
+        }));
 
         // Remove old games
-
         for (let i = 0; i < allGames.length; i++) {
             const game = allGames[i];
-            const players = await Player.find({ game_id: game._id })
+            try {
+                const players = await Player.find({ game_id: game._id })
 
-            if (players.filter(p => p.health > 0).length <= 1 && (new Date() - new Date(game.updatedAt) > (1000 * 60 * 60 * 24))) {
-                await deleteGame(game._id)
+                if (players.filter(p => p.health > 0).length <= 1 && (new Date() - new Date(game.updatedAt) > (1000 * 60 * 60 * 24))) {
+                    await deleteGame(game._id)
+                }
+            } catch (err) {
+                console.error(`[app] Failed cleanup for game ${game && game._id}:`, err);
             }
         }
     });

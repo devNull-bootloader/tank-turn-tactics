@@ -71,6 +71,31 @@ function applyActionVisibility(game, userId) {
 }
 
 /**
+ * When fog of war is on, hide action-log entries that involve tanks the viewer cannot see.
+ * Always keep the viewer's own entries and system votes.
+ */
+function applyActionLogVisibility(game, userId) {
+    if (!game.doFogOfWar) {
+        return;
+    }
+
+    const viewer = game.players.find(p => sameId(p.user_id, userId));
+    if (!viewer || viewer.health <= 0) {
+        return;
+    }
+
+    const visibleIds = new Set((game.players || []).map(p => String(p._id)));
+    game.actionLog = (game.actionLog || []).filter(entry => {
+        if (!entry) return false;
+        if (entry.action === 'vote') return true;
+        if (sameId(entry.player_id, viewer._id)) return true;
+        if (entry.player_id && visibleIds.has(String(entry.player_id))) return true;
+        if (entry.target_id && visibleIds.has(String(entry.target_id))) return true;
+        return false;
+    });
+}
+
+/**
  * Attach the viewer's bounty target name even if fog hides that tank.
  */
 function attachBountyName(game, userId, allPlayers) {
@@ -213,6 +238,7 @@ async function getGame(gameId, userId) {
     sanitizePlayers(game.players, userId);
     applyFogOfWar(game, userId);
     applyActionVisibility(game, userId);
+    applyActionLogVisibility(game, userId);
     game.user_id = userId;
 
     return game;
@@ -248,9 +274,21 @@ module.exports.getGameRequest = async function (req, res) {
 module.exports.startGameRequest = async function (req, res) {
     const gameId = req.params.gameId
 
-    // Fetch game and its players
+    // Fetch game and its players (auth / creator check handled by middleware)
     const players = await Player.find({ game_id: gameId })
-    const game = await Game.findOne({ _id: gameId })
+    const game = req.game || await Game.findOne({ _id: gameId })
+
+    if (!game) {
+        return res.status(404).send('Game not found');
+    }
+
+    if (game.hasStarted) {
+        return res.redirect("/play?game=" + gameId);
+    }
+
+    if (!players.length) {
+        return res.status(400).send('No players in game');
+    }
 
     const locations = assignLocation(players.length, game.size)
 
@@ -405,5 +443,48 @@ module.exports.renamePlayerRequest = async function (req, res) {
 }
 
 module.exports.editGameRequest = async function (req, res) {
+    try {
+        const gameId = req.params.gameId;
+        const game = await Game.findById(gameId);
+        if (!game) {
+            return res.status(404).send('Game not found');
+        }
 
+        const body = req.body || {};
+        const allowed = [
+            'name', 'turnTime', 'actionsPerInterval', 'tieCount', 'giveRangeOffset',
+            'allowAlwaysJoin', 'allowVoteChange',
+            'doActionQueue', 'doBroadcastAction', 'doFogOfWar', 'doBounty', 'doEscort'
+        ];
+
+        for (const key of allowed) {
+            if (body[key] === undefined) continue;
+            if (typeof game[key] === 'boolean' || ['allowAlwaysJoin', 'allowVoteChange', 'doActionQueue', 'doBroadcastAction', 'doFogOfWar', 'doBounty', 'doEscort'].includes(key)) {
+                game[key] = coerceBoolean(body[key], game[key]);
+            } else if (typeof game[key] === 'number' || ['turnTime', 'actionsPerInterval', 'tieCount', 'giveRangeOffset'].includes(key)) {
+                const n = parseInt(body[key], 10);
+                if (Number.isFinite(n)) game[key] = n;
+            } else {
+                game[key] = body[key];
+            }
+        }
+
+        if (body.size != null) {
+            const sizeVal = parseInt(body.size, 10);
+            if (Number.isFinite(sizeVal) && sizeVal > 0) {
+                game.size = { width: sizeVal, height: sizeVal };
+            } else if (body.size.width != null && body.size.height != null) {
+                game.size = {
+                    width: parseInt(body.size.width, 10),
+                    height: parseInt(body.size.height, 10)
+                };
+            }
+        }
+
+        await game.save();
+        res.status(200).json(game);
+    } catch (e) {
+        console.log(e);
+        res.status(500).send(e);
+    }
 }
