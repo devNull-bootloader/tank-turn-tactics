@@ -3,6 +3,7 @@ const Game = require('../models/GameModel.js')
 const Player = require('../models/PlayerModel.js')
 const actionFunctions = require('../controllers/ActionController.js')
 const { deleteGame } = require("../controllers/GameController.js");
+const { assignBounties, actionPointCost } = require('../libs/game_utils.js');
 
 let cronString = '0 * * * *';
 
@@ -13,34 +14,33 @@ if (process.env.INTERVAL_MODE) {
     }
 }
 
-schedule.scheduleJob(cronString, async function() {
-    // Get all started games
-    const allGames = await Game.find({ hasStarted: true });
+// Avoid starting the cron while unit tests import helpers from this module
+if (!process.env.JEST_WORKER_ID) {
+    schedule.scheduleJob(cronString, async function() {
+        // Get all started games
+        const allGames = await Game.find({ hasStarted: true });
 
-    // Distribute actions
-    console.log("[app] Actions distributed! - " + new Date());
-    allGames.forEach(performActions);
+        // Distribute actions / resolve queues
+        console.log("[app] Actions distributed! - " + new Date());
+        await Promise.all(allGames.map(performActions));
 
-    // Remove old games
+        // Remove old games
 
-    for (let i = 0; i < allGames.length; i++) {
-        const game = allGames[i];
-        const players = await Player.find({ game_id: game._id })
+        for (let i = 0; i < allGames.length; i++) {
+            const game = allGames[i];
+            const players = await Player.find({ game_id: game._id })
 
-        if (players.filter(p => p.health > 0).length <= 1 && (new Date() - new Date(game.updatedAt) > (1000 * 60 * 60 * 24))) {
-            await deleteGame(game._id)
+            if (players.filter(p => p.health > 0).length <= 1 && (new Date() - new Date(game.updatedAt) > (1000 * 60 * 60 * 24))) {
+                await deleteGame(game._id)
+            }
         }
-    }
-});
+    });
+}
 
 async function performActions(game) {
     const players = await Player.find({ game_id: game._id });
 
     await distributeActions(game, players)
-
-    // if (game.doActionQueue) {
-    //     await doActionQueue(game)
-    // }
 
     await game.save();
 }
@@ -49,12 +49,25 @@ async function distributeActions(game, players) {
     if (game.turnTimePassed >= game.turnTime) {
         game.turnTimePassed = 1;
 
-        await calculateVotes(game, players)
+        let currentPlayers = players;
 
-        players.map(async player => {
+        // End of day: resolve queued actions first, then votes / bounties / AP grants
+        if (game.doActionQueue) {
+            await doActionQueue(game, currentPlayers)
+            // Refresh players after queue mutations
+            currentPlayers = await Player.find({ game_id: game._id });
+        }
+
+        await calculateVotes(game, currentPlayers)
+
+        if (game.doBounty) {
+            await assignBounties(currentPlayers)
+        }
+
+        await Promise.all(currentPlayers.map(async player => {
             player.actions += game.actionsPerInterval;
             await player.save()
-        })
+        }))
     } else {
         game.turnTimePassed++;
     }
@@ -124,9 +137,8 @@ async function calculateVotes(game, players) {
     }
 }
 
-async function doActionQueue(game) {
-    const actions = game.actions;
-    const players = await Player.find({ game_id: game._id });
+async function doActionQueue(game, players) {
+    const actions = [...(game.actions || [])];
 
     const ACTIONS_ORDER = ['give', 'attack', 'move', 'upgrade']
 
@@ -138,11 +150,42 @@ async function doActionQueue(game) {
     })
 
     for (const action of sortedActions) {
-        const player = players.find(player => player._id.equals(action.player_id));
+        const player = players.find(player => player && player._id.equals(action.player_id));
+        if (!player) {
+            continue;
+        }
 
-        const result = await actionFunctions[action.action](game, player, action)
-        if (result.status !== 200) console.log(result.message)
+        const payload = {
+            ...action.toObject ? action.toObject() : action,
+            prepaid: true
+        };
+
+        const result = await actionFunctions[action.action](game, player, payload)
+        if (result.status !== 200) {
+            // Refund reserved AP if the queued action could not resolve
+            const cost = actionPointCost(action.action, payload);
+            player.actions += cost;
+            await player.save();
+            console.log(result.message)
+            continue;
+        }
+
+        const logData = {
+            target_id: action.target_id,
+            count: action.count,
+            positions: action.positions,
+            upgrade: action.upgrade,
+            killed: result.killed,
+            bountyClaimed: result.bountyClaimed
+        };
+
+        await actionFunctions.logAction(game, player._id, action.action, logData, 'actionLog');
     }
 
     game.actions = [];
+    await game.save();
 }
+
+module.exports.performActions = performActions;
+module.exports.doActionQueue = doActionQueue;
+module.exports.distributeActions = distributeActions;

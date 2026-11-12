@@ -1,4 +1,4 @@
-const { checkRange, checkGrid } = require('../libs/game_utils.js')
+const { checkRange, checkGrid, actionPointCost, UPGRADE_COST } = require('../libs/game_utils.js')
 
 // Router: ./routes/action_router.js
 
@@ -22,7 +22,7 @@ function isAdjacent(pos1, pos2) {
 async function move(game, player, data) {
     const positions = data.positions;
 
-    if (positions.length > player.actions) {
+    if (!data.prepaid && positions.length > player.actions) {
         return { status: 403, message: 'Not enough actions' }
     }
 
@@ -43,10 +43,13 @@ async function move(game, player, data) {
         try {
             player.position.x = finalPosition.x;
             player.position.y = finalPosition.y;
-            player.actions -= positions.length;
 
-            if (player.actions < 0) {
-                return { status: 403, message: 'Not enough actions' }
+            if (!data.prepaid) {
+                player.actions -= positions.length;
+
+                if (player.actions < 0) {
+                    return { status: 403, message: 'Not enough actions' }
+                }
             }
 
             await player.save();
@@ -65,7 +68,7 @@ async function move(game, player, data) {
  * @param {Object} game
  * @param {Object} player
  * @param {Object} data
- * @return {Promise<{message: string, status: number, killed: boolean}>}
+ * @return {Promise<{message: string, status: number, killed: boolean, bountyClaimed: boolean}>}
  */
 async function attack(game, player, data) {
     let targetPlayer;
@@ -73,38 +76,49 @@ async function attack(game, player, data) {
     try {
         targetPlayer = await Player.findById(data.target_id);
     } catch (e) {
-        return { status: 500, message: e, killed: false };
+        return { status: 500, message: e, killed: false, bountyClaimed: false };
+    }
+
+    if (!targetPlayer) {
+        return { status: 404, message: 'Target not found', killed: false, bountyClaimed: false };
     }
 
     if (!checkRange(player.position, targetPlayer.position, player.range)) {
-        return { status: 403, message: 'Out of bounds', killed: false };
+        return { status: 403, message: 'Out of bounds', killed: false, bountyClaimed: false };
     }
 
     try {
-        if (targetPlayer.health <= 0) return { status: 500, message: 'Player already dead', killed: false }
+        if (targetPlayer.health <= 0) return { status: 500, message: 'Player already dead', killed: false, bountyClaimed: false }
 
-        targetPlayer.health -= parseInt(data.count);
+        const count = parseInt(data.count, 10);
+        targetPlayer.health -= count;
         await targetPlayer.save();
 
         let killed = false;
+        let bountyClaimed = false;
 
-        // Killed
+        // Killed — loot action points (and fulfill bounty if assigned)
         if (targetPlayer.health <= 0) {
             player.actions += targetPlayer.actions
             killed = true;
 
-            const players = game
+            if (game.doBounty && player.bounty_target && player.bounty_target.equals(targetPlayer._id)) {
+                bountyClaimed = true;
+                player.bounty_target = null;
+            }
         }
 
-        player.actions -= parseInt(data.count);
+        if (!data.prepaid) {
+            player.actions -= count;
+        }
         await player.save()
 
-        return { status: 200, message: 'ok', killed };
+        return { status: 200, message: 'ok', killed, bountyClaimed };
     } catch (e) {
         await targetPlayer.updateOne(targetPlayer)
         await player.updateOne(player)
 
-        return { status: 500, message: e, killed: false };
+        return { status: 500, message: e, killed: false, bountyClaimed: false };
     }
 }
 
@@ -117,23 +131,21 @@ async function attack(game, player, data) {
  */
 async function upgrade(game, player, data) {
     const UPGRADES = [ "range", "sight", "health" ]
-    const COST = {
-        health: 2,
-        range: 1,
-        sight: 1
-    }
 
     if (!UPGRADES.includes(data.upgrade)) {
         return { status: 403, message: 'Unknown upgrade' }
     }
 
     try {
-        player[data.upgrade] += parseInt(data.count);
+        const count = parseInt(data.count, 10);
+        player[data.upgrade] += count;
 
-        player.actions -= COST[data.upgrade] * parseInt(data.count);
+        if (!data.prepaid) {
+            player.actions -= UPGRADE_COST[data.upgrade] * count;
 
-        if (player.actions < 0) {
-            return { status: 501, message: "Not enough energy" }
+            if (player.actions < 0) {
+                return { status: 501, message: "Not enough energy" }
+            }
         }
 
         await player.save()
@@ -155,9 +167,12 @@ async function upgrade(game, player, data) {
 async function give(game, player, data) {
     let targetPlayer;
 
-
     try {
         targetPlayer = await Player.findById(data.target_id);
+
+        if (!targetPlayer) {
+            return { status: 404, message: 'Target not found' };
+        }
 
         if (game.giveRangeOffset && game.giveRangeOffset >= 0) {
             if (!checkRange(player.position, targetPlayer.position, player.range + game.giveRangeOffset)) {
@@ -165,8 +180,12 @@ async function give(game, player, data) {
             }
         }
 
-        player.actions -= parseInt(data.count);
-        targetPlayer.actions += parseInt(data.count);
+        const count = parseInt(data.count, 10);
+
+        if (!data.prepaid) {
+            player.actions -= count;
+        }
+        targetPlayer.actions += count;
 
         await player.save();
         await targetPlayer.save();
@@ -202,6 +221,45 @@ async function logAction(game, playerId, action, data, type) {
     }
 }
 
+/**
+ * Reserve AP when queueing an action so players cannot over-commit.
+ * @param {Object} player
+ * @param {number} cost
+ * @return {Promise<{ok: boolean, message?: string}>}
+ */
+async function reserveActionPoints(player, cost) {
+    if (cost <= 0) {
+        return { ok: false, message: 'Invalid action cost' };
+    }
+    if (player.actions < cost) {
+        return { ok: false, message: 'Not enough actions' };
+    }
+
+    player.actions -= cost;
+    await player.save();
+    return { ok: true };
+}
+
+async function queueAction(req, res, action, data) {
+    const cost = actionPointCost(action, data);
+    const reserved = await reserveActionPoints(req.player, cost);
+
+    if (!reserved.ok) {
+        return res.status(403).send(reserved.message);
+    }
+
+    const success = await logAction(req.game, req.player._id, action, data, 'actions');
+
+    if (success) {
+        res.status(200).send('ok');
+    } else {
+        // Refund reserved points if logging failed
+        req.player.actions += cost;
+        await req.player.save();
+        res.status(500).send();
+    }
+}
+
 async function moveReq(req, res) {
     if (!req.game.doActionQueue) {
         const result = await move(req.game, req.player, req.body);
@@ -211,76 +269,54 @@ async function moveReq(req, res) {
         if (result.status !== 200) console.log(result.message)
         res.status(result.status).send(result.message)
     } else {
-        const success = await logAction(req.game, req.player._id, 'move', req.body, 'actions')
-
-        if (success) {
-            res.status(200).send('ok')
-        } else {
-            res.status(500).send
-        }
+        await queueAction(req, res, 'move', req.body);
     }
 }
 
 async function attackReq(req, res) {
+    const data = { target_id: req.params.targetId, count: req.params.count };
+
     if (!req.game.doActionQueue) {
-        const result = await attack(req.game, req.player, { target_id: req.params.targetId, count: req.params.count })
+        const result = await attack(req.game, req.player, data)
 
-        await logAction(req.game, req.player._id, 'attack', { target_id: req.params.targetId, killed: result.killed, count: req.params.count }, 'actionLog')
-
-        res.status(result.status).send(result.message)
-    } else {
-        const success = await logAction(req.game, req.player._id, 'attack', { target_id: req.params.targetId, count: req.params.count }, 'actions')
-
-        if (success) {
-            res.status(200).send('ok')
-        } else {
-            res.status(500).send()
-        }
-    }
-
-}
-
-async function upgradeReq(req, res) {
-    if (!req.game.doActionQueue) {
-        const result = await upgrade(req.game, req.player, { upgrade: req.params.upgrade, count: req.params.count });
-
-        await logAction(req.game, req.player._id, 'upgrade', {
-            upgrade: req.params.upgrade,
+        await logAction(req.game, req.player._id, 'attack', {
+            target_id: req.params.targetId,
+            killed: result.killed,
+            bountyClaimed: result.bountyClaimed,
             count: req.params.count
         }, 'actionLog')
 
         res.status(result.status).send(result.message)
     } else {
-        const success = await logAction(req.game, req.player._id, 'upgrade', {
-            upgrade: req.params.upgrade,
-            count: req.params.count
-        }, 'actions')
+        await queueAction(req, res, 'attack', data);
+    }
+}
 
-        if (success) {
-            res.status(200).send('ok')
-        } else {
-            res.status(500).send()
-        }
+async function upgradeReq(req, res) {
+    const data = { upgrade: req.params.upgrade, count: req.params.count };
+
+    if (!req.game.doActionQueue) {
+        const result = await upgrade(req.game, req.player, data);
+
+        await logAction(req.game, req.player._id, 'upgrade', data, 'actionLog')
+
+        res.status(result.status).send(result.message)
+    } else {
+        await queueAction(req, res, 'upgrade', data);
     }
 }
 
 async function giveReq(req, res) {
-    if (!req.game.doActionQueue) {
-        const result = await give(req.game, req.player, { target_id: req.params.targetId, count: req.params.count });
+    const data = { target_id: req.params.targetId, count: req.params.count };
 
-        await logAction(req.game, req.player._id, 'give' , { target_id: req.params.targetId, count: req.params.count }, 'actionLog')
+    if (!req.game.doActionQueue) {
+        const result = await give(req.game, req.player, data);
+
+        await logAction(req.game, req.player._id, 'give', data, 'actionLog')
 
         res.status(result.status).send(result.message)
     } else {
-        const success = await logAction(req.game, req.player._id, 'give', { target_id: req.params.targetId }, 'actions')
-
-        if (success) {
-            await req.game.save();
-
-            res.status(200).send('ok')
-        } else {
-            res.status(500).send()
-        }
+        await queueAction(req, res, 'give', data);
     }
 }
 
@@ -358,6 +394,7 @@ module.exports = {
     attack,
     upgrade,
     give,
+    logAction,
 
     moveReq,
     attackReq,

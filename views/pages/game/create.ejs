@@ -50,15 +50,46 @@
            <div class="formItem">
            <label for="doActionQueue">Mode</label>
            <select id="doActionQueue" name="doActionQueue">
-               <option value=false>Asynchronous</option>
-<!--               <option value=true>Rounds</option>-->
+               <option value="false">Asynchronous</option>
+               <option value="true">Rounds (action queue)</option>
            </select>
+           </div>
+
+           <div class="formItem" id="broadcastRow">
+               <label for="doBroadcastAction">Broadcast queued actions (spying)</label>
+               <input type="hidden" name="doBroadcastAction" value="false" />
+               <input id="doBroadcastAction" type="checkbox" name="doBroadcastAction" value="true" checked />
+           </div>
+
+           <div class="formItem">
+               <label for="doFogOfWar">Fog of war</label>
+               <input type="hidden" name="doFogOfWar" value="false" />
+               <input id="doFogOfWar" type="checkbox" name="doFogOfWar" value="true" />
+           </div>
+
+           <div class="formItem">
+               <label for="doBounty">Daily bounty</label>
+               <input type="hidden" name="doBounty" value="false" />
+               <input id="doBounty" type="checkbox" name="doBounty" value="true" checked />
            </div>
 
            <div class="formItem">
                <label for="allowAlwaysJoin">Allow always join</label>
-               <input id="allowAlwaysJoin" type="checkbox" name="allowAlwaysJoin" value=true />
+               <input type="hidden" name="allowAlwaysJoin" value="false" />
+               <input id="allowAlwaysJoin" type="checkbox" name="allowAlwaysJoin" value="true" />
            </div>
+
+           <script>
+               (function () {
+                   const mode = document.getElementById('doActionQueue');
+                   const broadcastRow = document.getElementById('broadcastRow');
+                   function syncBroadcast() {
+                       broadcastRow.style.display = mode.value === 'true' ? '' : 'none';
+                   }
+                   mode.addEventListener('change', syncBroadcast);
+                   syncBroadcast();
+               })();
+           </script>
 
            <div class="formItem">
 
