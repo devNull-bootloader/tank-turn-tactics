@@ -52,18 +52,10 @@ async function createApp() {
 
     let sessionStore;
     if (useSupabase()) {
-        if (process.env.DATABASE_URL) {
-            const PgSession = require('connect-pg-simple')(session);
-            sessionStore = new PgSession({
-                conString: process.env.DATABASE_URL,
-                tableName: 'sessions',
-                createTableIfMissing: false
-            });
-        } else {
-            // Fallback for preview if DATABASE_URL is unset (not durable across isolates)
-            sessionStore = new session.MemoryStore();
-            console.warn('[session] Using MemoryStore — set DATABASE_URL for durable sessions');
-        }
+        // Use MemoryStore on Vercel: Supabase direct DB hosts are often IPv6-only and
+        // unreachable from Vercel functions. App data goes through the Supabase REST API.
+        sessionStore = new session.MemoryStore();
+        console.warn('[session] Using MemoryStore with Supabase REST data layer');
     } else {
         sessionStore = new MongoDBStore({
             uri: dbUri,
