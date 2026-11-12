@@ -77,9 +77,9 @@ root
 
 #### Extra Features
 
-- [ ] **Action Queue**: Actions are performed all at once at the end of the day.
-- [ ] **Fog of war**: Sight is included as a stat alongside range. Player can only see up to their sight stat, even if their range is greater.
-- [ ] **Spying**: In action queue mode, actions are not known until they are executed at the end of the day. However, actions will be broadcasted to 
+- [x] **Action Queue**: Actions are performed all at once at the end of the day.
+- [x] **Fog of war**: Sight is included as a stat alongside range. Player can only see up to their sight stat, even if their range is greater.
+- [x] **Spying**: In action queue mode, actions are not known until they are executed at the end of the day. However, actions will be broadcasted to 
    anyone online at the moment. This would add the possibility of 'spying' on other players.
 - [x] **Loot**: Players are awarded all of the action points of those they kill.
-- [ ] **Bounty**: Each day, players are assigned the name of another random player. If they kill said player, they will receive all of that player's action points.
+- [x] **Bounty**: Each day, players are assigned the name of another random player. If they kill said player, they will receive all of that player's action points.

@@ -1,13 +1,18 @@
 const Game = require('../models/GameModel.js')
 const Player = require('../models/PlayerModel.js')
-const { assignLocation } = require("../libs/game_utils.js");
+const { assignLocation, assignBounties, checkRange, coerceBoolean } = require("../libs/game_utils.js");
 const mongoose = require("mongoose");
 
 // Base controllers
 
-function sanitizePlayers(players, userId, hiddenFields = ['actions']) {
+function sameId(a, b) {
+    if (a == null || b == null) return false;
+    return String(a) === String(b);
+}
+
+function sanitizePlayers(players, userId, hiddenFields = ['actions', 'bounty_target']) {
     players.forEach(p => {
-        if (!p.user_id.equals(userId)) {
+        if (!sameId(p.user_id, userId)) {
             hiddenFields.forEach(field => {
                 delete p[field]
             })
@@ -15,6 +20,67 @@ function sanitizePlayers(players, userId, hiddenFields = ['actions']) {
     })
 
     return players
+}
+
+/**
+ * Fog of war: alive viewers only see tanks within their sight (plus themselves and dead players).
+ * Dead viewers see everyone so jury voting still works.
+ */
+function applyFogOfWar(game, userId) {
+    if (!game.doFogOfWar) {
+        return;
+    }
+
+    const viewer = game.players.find(p => sameId(p.user_id, userId));
+    if (!viewer || viewer.health <= 0) {
+        return;
+    }
+
+    game.players = game.players.filter(p => {
+        if (sameId(p._id, viewer._id) || p.health <= 0) {
+            return true;
+        }
+        if (!viewer.position || !p.position) {
+            return false;
+        }
+        return checkRange(viewer.position, p.position, viewer.sight);
+    });
+}
+
+/**
+ * Spying / broadcast: when queue mode is on and broadcast is off, only show the viewer's pending actions.
+ * When broadcast is on, anyone polling (online) can see the full queue.
+ */
+function applyActionVisibility(game, userId) {
+    if (!game.doActionQueue) {
+        game.actions = [];
+        return;
+    }
+
+    if (game.doBroadcastAction) {
+        return;
+    }
+
+    const viewer = game.players.find(p => sameId(p.user_id, userId));
+    if (!viewer) {
+        game.actions = [];
+        return;
+    }
+
+    game.actions = (game.actions || []).filter(a => sameId(a.player_id, viewer._id));
+}
+
+/**
+ * Attach the viewer's bounty target name even if fog hides that tank.
+ */
+function attachBountyName(game, userId, allPlayers) {
+    const viewer = game.players.find(p => sameId(p.user_id, userId));
+    if (!viewer || !viewer.bounty_target) {
+        return;
+    }
+
+    const target = allPlayers.find(p => sameId(p._id, viewer.bounty_target));
+    viewer.bounty_target_name = target ? target.name : null;
 }
 
 // Request controllers
@@ -34,6 +100,13 @@ module.exports.createGameRequest = async (req, res) => {
     // Reformat and append size
     // todo: Custom sizes will require different setup
     gameCfg.size = { width: gameCfg.size, height: gameCfg.size }
+
+    // Coerce feature flags from HTML forms
+    gameCfg.doActionQueue = coerceBoolean(gameCfg.doActionQueue, false);
+    gameCfg.doBroadcastAction = coerceBoolean(gameCfg.doBroadcastAction, true);
+    gameCfg.doFogOfWar = coerceBoolean(gameCfg.doFogOfWar, false);
+    gameCfg.doBounty = coerceBoolean(gameCfg.doBounty, true);
+    gameCfg.allowAlwaysJoin = coerceBoolean(gameCfg.allowAlwaysJoin, false);
 
     let gameId;
 
@@ -133,8 +206,13 @@ module.exports.joinGameRequest = async function (req, res) {
 
 async function getGame(gameId, userId) {
     const game = await Game.findById(gameId).lean();
-    game.players = await Player.find({ game_id: game._id }).lean();
-    sanitizePlayers(game.players, userId)
+    const allPlayers = await Player.find({ game_id: game._id }).lean();
+    game.players = allPlayers.map(p => ({ ...p }));
+
+    attachBountyName(game, userId, allPlayers);
+    sanitizePlayers(game.players, userId);
+    applyFogOfWar(game, userId);
+    applyActionVisibility(game, userId);
     game.user_id = userId;
 
     return game;
@@ -181,6 +259,10 @@ module.exports.startGameRequest = async function (req, res) {
         return player.save();
     }))
 
+    if (game.doBounty) {
+        await assignBounties(players)
+    }
+
     await Game.findByIdAndUpdate(gameId, {
         hasStarted: true,
         startedAt: new Date()
@@ -201,11 +283,12 @@ module.exports.getPlayerRequest = async function (req, res) {
 }
 
 module.exports.getPlayers = async function (req, res) {
-    const gameId = req.params.gameId
-
-    const players = await Player.find({ game_id: gameId }).lean()
-
-    res.send(players)
+    try {
+        const game = await getGame(req.params.gameId, req.user.id)
+        res.send(game.players)
+    } catch (e) {
+        res.status(500).send(e)
+    }
 }
 
 // GET routes
