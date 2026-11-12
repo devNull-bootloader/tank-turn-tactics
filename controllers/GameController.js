@@ -301,7 +301,7 @@ module.exports.deleteGameRequest = async function (req, res) {
 module.exports.getAllGamesRequest = async function (req, res) {
     const gameList = await Game.find().lean()
 
-    res.json(await joinGamesWithPlayer(gameList))
+    res.json(await joinGamesWithPlayer(gameList, req.user && req.user.id))
 }
 
 module.exports.renamePlayerRequest = async function (req, res) {

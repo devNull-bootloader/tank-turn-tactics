@@ -38,6 +38,12 @@ describe("ActionController: Immediate", () => {
         it("should be false for positions more than one apart", () => {
             expect(isAdjacent({ x: 0, y: 0 }, { x: 0, y: 2 })).toBeFalsy()
         })
+        it("should be false when one axis is adjacent but the other is farther", () => {
+            expect(isAdjacent({ x: 0, y: 0 }, { x: 1, y: 5 })).toBeFalsy()
+        })
+        it("should be false for the same position", () => {
+            expect(isAdjacent({ x: 3, y: 3 }, { x: 3, y: 3 })).toBeFalsy()
+        })
     });
     describe("move", () => {
         let mainPlayer;

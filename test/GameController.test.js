@@ -252,7 +252,7 @@ describe("GameController", () => {
 
             const { res } = getMockRes();
 
-            await getAllGamesRequest({ user: { id: mongoose.Types.ObjectId }}, res);
+            await getAllGamesRequest({ user: { id: mongoose.Types.ObjectId() }}, res);
 
             expect(res.json.mock.calls[0][0]).toHaveLength(gamesToGenerate);
         })

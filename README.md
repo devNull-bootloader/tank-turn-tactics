@@ -7,6 +7,8 @@ The `master` branch is only for deployment. All pull requests that directly affe
 1. Copy the `sample.env` file and rename it to `.env` to set up environment variables.
 2. Run `npm install` to install dependencies.
 3. Start the server with `npm run start:dev` or `npm run start:debug` if you want stack trace.
+   - In development, leave `DB_URI` empty to use an in-memory MongoDB automatically.
+   - Default admin login (when using sample.env): `admin@example.com` / `admin`.
 
 ## Project Structure
 ```
