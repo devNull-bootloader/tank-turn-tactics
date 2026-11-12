@@ -1,53 +1,59 @@
-const mongoose = require("mongoose");
+const useSupabase = require('../libs/db_mode').useSupabase();
 
-const playerSchema = new mongoose.Schema({
-    user_id: { type: mongoose.Types.ObjectId, required: true, ref: "Game" },
-    game_id: { type: mongoose.Types.ObjectId, required: true, ref: "User" },
-    name: {
-        type: String,
-        required: true
-    },
-    position: {
-        x: Number,
-        y: Number
-    },
-    actions: {
-        type: Number,
-        default: 1
-    },
-    // Must match enum name in GameModel.js!
-    range: {
-        type: Number,
-        default: 1
-    },
-    sight: {
-        type: Number,
-        default: 1
-    },
-    health: {
-        type: Number,
-        default: 3
-    },
-    color: {
-        type: String,
-        default: "#00ffc3"
-    },
+if (useSupabase) {
+    module.exports = require('../libs/supabase_models').Player;
+} else {
+    const mongoose = require("mongoose");
 
-    // Daily bounty target (doBounty games)
-    bounty_target: {
-        type: mongoose.Types.ObjectId,
-        ref: "Player",
-        default: null
-    },
+    const playerSchema = new mongoose.Schema({
+        user_id: { type: mongoose.Types.ObjectId, required: true, ref: "Game" },
+        game_id: { type: mongoose.Types.ObjectId, required: true, ref: "User" },
+        name: {
+            type: String,
+            required: true
+        },
+        position: {
+            x: Number,
+            y: Number
+        },
+        actions: {
+            type: Number,
+            default: 1
+        },
+        // Must match enum name in GameModel.js!
+        range: {
+            type: Number,
+            default: 1
+        },
+        sight: {
+            type: Number,
+            default: 1
+        },
+        health: {
+            type: Number,
+            default: 3
+        },
+        color: {
+            type: String,
+            default: "#00ffc3"
+        },
 
-    // Votes
-    vote_jury: {
-        type: mongoose.Types.ObjectId,
-        ref: "Player"
-    }
-}, { timestamps: true });
+        // Daily bounty target (doBounty games)
+        bounty_target: {
+            type: mongoose.Types.ObjectId,
+            ref: "Player",
+            default: null
+        },
 
-playerSchema.index({ 'user_id': 1, 'game_id':1 }, { unique: true})
+        // Votes
+        vote_jury: {
+            type: mongoose.Types.ObjectId,
+            ref: "Player"
+        }
+    }, { timestamps: true });
 
-const Player = mongoose.model("players", playerSchema);
-module.exports = Player;
+    playerSchema.index({ 'user_id': 1, 'game_id':1 }, { unique: true})
+
+    const Player = mongoose.model("players", playerSchema);
+    module.exports = Player;
+}
