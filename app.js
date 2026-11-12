@@ -47,17 +47,36 @@ async function createApp() {
         app.use('/js', express.static(path.join(__dirname, 'public/js')));
     }
 
-    const { dbUri, dbOptions } = await require('./config/database.js')(app);
+    const { dbUri, dbOptions, mode } = await require('./config/database.js')(app);
+    const { useSupabase } = require('./libs/db_mode');
+
+    let sessionStore;
+    if (useSupabase()) {
+        if (process.env.DATABASE_URL) {
+            const PgSession = require('connect-pg-simple')(session);
+            sessionStore = new PgSession({
+                conString: process.env.DATABASE_URL,
+                tableName: 'sessions',
+                createTableIfMissing: false
+            });
+        } else {
+            // Fallback for preview if DATABASE_URL is unset (not durable across isolates)
+            sessionStore = new session.MemoryStore();
+            console.warn('[session] Using MemoryStore — set DATABASE_URL for durable sessions');
+        }
+    } else {
+        sessionStore = new MongoDBStore({
+            uri: dbUri,
+            collection: 'sessions',
+            options: dbOptions
+        });
+    }
 
     app.use(session({
         secret: process.env.SESSION_SECRET,
         resave: false,
         saveUninitialized: true,
-        store: new MongoDBStore({
-            uri: dbUri,
-            collection: 'sessions',
-            options: dbOptions
-        }),
+        store: sessionStore,
         cookie: {
             maxAge: 1000 * 60 * 60 * 24 * 14,
             httpOnly: true,
@@ -72,9 +91,16 @@ async function createApp() {
 
     app.get('/api/health', async (req, res) => {
         const supabase = await pingSupabase();
+        let mongo = false;
+        try {
+            mongo = require('mongoose').connection.readyState === 1;
+        } catch (_) {
+            mongo = false;
+        }
         res.json({
             ok: true,
-            mongo: require('mongoose').connection.readyState === 1,
+            mode,
+            mongo,
             supabase,
             vercel: process.env.VERCEL === '1'
         });
