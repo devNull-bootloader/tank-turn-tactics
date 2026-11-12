@@ -1,12 +1,20 @@
 <nav>
     <div style="display: flex; align-items: center">
-        <a href=""><img src="assets/icon.png"/></a>
+        <a href="/"><img src="assets/icon.png"/></a>
         <h1>Tank_Tactics</h1>
     </div>
-    <a class="navItem" href="/">Home</a>
-    <a class="navItem" href="/join">Join</a>
-    <a class="navItem" href="/create-game">Create</a>
-    <a class="navItem" href="/auth/logout" id="logout">Logout</a>
+    <a class="navItem" href="/"><%= t('nav.home') %></a>
+    <a class="navItem" href="/join"><%= t('nav.join') %></a>
+    <a class="navItem" href="/create-game"><%= t('nav.create') %></a>
+    <a class="navItem" href="/bots"><%= t('nav.bots') %></a>
+    <a class="navItem" href="/tutorial"><%= t('nav.tutorial') %></a>
+    <% if (typeof currentUser !== 'undefined' && currentUser && (currentUser.debug || currentUser.admin)) { %>
+    <a class="navItem" href="/debug"><%= t('nav.debug') %></a>
+    <% } %>
+    <div style="margin: 10px 20px;">
+        <%- include('./lang_switcher.ejs') %>
+    </div>
+    <a class="navItem" href="/auth/logout" id="logout"><%= t('nav.logout') %></a>
 
 
     <style>

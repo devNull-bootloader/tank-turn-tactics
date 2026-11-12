@@ -22,11 +22,13 @@ function allowMemoryFallback() {
 }
 
 async function ensureAdmin() {
-    if (!process.env.ADMIN_EMAIL || !process.env.ADMIN_PASSWORD) return;
+    const adminUsername = process.env.ADMIN_USERNAME
+        || (process.env.ADMIN_EMAIL ? String(process.env.ADMIN_EMAIL).split('@')[0] : null);
+    if (!adminUsername || !process.env.ADMIN_PASSWORD) return;
     try {
-        const existing = await User.findOne({ email: process.env.ADMIN_EMAIL });
+        const existing = await User.findOne({ username: String(adminUsername).toLowerCase() });
         if (!existing) {
-            await createUser(process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD, true);
+            await createUser(adminUsername, process.env.ADMIN_PASSWORD, true);
             console.log('Admin created!');
         }
     } catch (err) {

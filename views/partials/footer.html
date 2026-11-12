@@ -1,9 +1,16 @@
 <footer>
     <div id="footerLinks">
-        <a href="/">Home</a>
-        <a href="/changelog">Changelog</a>
-        <a href="/how-to-play">How to play</a>
-        <a href="/credits">Credits</a>
+        <a href="/"><%= t('nav.home') %></a>
+        <a href="/changelog"><%= t('nav.changelog') %></a>
+        <a href="/how-to-play"><%= t('nav.howToPlay') %></a>
+        <a href="/credits"><%= t('nav.credits') %></a>
+        <% var _debugUser = (typeof currentUser !== 'undefined') ? currentUser : null; %>
+        <% if (_debugUser && (_debugUser.debug || _debugUser.admin)) { %>
+        <a href="/debug"><%= t('nav.debug') %></a>
+        <% } else if (!_debugUser) { %>
+        <a href="/login?tab=debug"><%= t('nav.debug') %></a>
+        <% } %>
+        <%- include('./lang_switcher.ejs') %>
     </div>
     <div id="info">
         <span>Version 1.3.0</span>
@@ -31,6 +38,7 @@
     #footerLinks {
         display: flex;
         justify-content: center;
+        align-items: center;
 
 
         position: relative;
@@ -46,6 +54,10 @@
 
     #footerLinks a:hover {
         text-decoration: underline;
+    }
+
+    #footerLinks .langSwitcher {
+        margin-left: 12px;
     }
 
 </style>

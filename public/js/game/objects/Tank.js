@@ -149,6 +149,15 @@ class Tank extends Driver.ActiveComponent {
 
         let isMoving = false;
 
+        // Always show a soft range tint for the local player so attack reach is visible
+        if (this.player === USER_PLAYER && this.player.health > 0 && !gameOver) {
+            if (rangeMode === RANGE_MODES.CIRCLE) {
+                this.drawCircleRange(ctx, this.player.range, 'rgba(117,255,234,0.35)', [8, 8], this)
+            } else {
+                this.drawSquareRange(ctx, this.player.range, '#75ffea', this.player.position, 0.18)
+            }
+        }
+
         if (selectedTank === this || actionState === ACTION_STATES.MV || rangeDisplay === RANGE_DISPLAY.ALL) {
             let center = this
 
@@ -188,11 +197,11 @@ class Tank extends Driver.ActiveComponent {
 
             if (actionState === ACTION_STATES.SELECT || actionState === ACTION_STATES.BUTTONS || actionState === ACTION_STATES.GV) {
                 // Give range
-                if (game.giveRangeOffset && game.giveRangeOffset >= 0) {
+                if (game.giveRangeOffset != null && game.giveRangeOffset >= 0) {
                     if (rangeMode === RANGE_MODES.CIRCLE) {
                         this.drawCircleRange(ctx, this.player.range + game.giveRangeOffset, "rgba(88,255,81,0.16)", [5, 2])
                     } else {
-                        // this.drawSquareRange(ctx, this.player.range, this.player.color + game.giveRangeOffset)
+                        this.drawSquareRange(ctx, this.player.range + game.giveRangeOffset, '#58ff51', this.player.position, 0.12)
                     }
                 }
             }
@@ -223,7 +232,7 @@ class Tank extends Driver.ActiveComponent {
         ctx.stroke()
     }
 
-    drawSquareRange(ctx, range, color, centerCoords = this.player.position) {
+    drawSquareRange(ctx, range, color, centerCoords = this.player.position, alphaScale = null) {
         const startX = Math.max(centerCoords.x - range, 0);
         const endX = Math.min(centerCoords.x + range + 1, game.size.width)
 
@@ -232,7 +241,7 @@ class Tank extends Driver.ActiveComponent {
 
         for (let x = startX, i = 0; x < endX; x++, i++) {
             for (let y = startY, j = 0; y < endY; y++, j++) {
-                if (inRange(this.player.position, { x, y }, range)) {
+                if (inRange(centerCoords, { x, y }, range)) {
                     let index = Tank.animInd
 
                     index += x + y
@@ -250,7 +259,22 @@ class Tank extends Driver.ActiveComponent {
                     const BRIGHTNESS_OFFSET = 15
                     const brightness = Math.floor(brightnessPercent * MAX_BRIGHTNESS) + BRIGHTNESS_OFFSET;
 
-                    ctx.fillStyle = color + brightness.toString(16).padStart(2, '0')
+                    if (alphaScale != null) {
+                        const alpha = Math.min(0.45, Math.max(0.05, brightnessPercent * alphaScale + alphaScale * 0.35));
+                        // Accept #rgb / #rrggbb and convert to rgba for soft tint overlays
+                        let r = 117, g = 255, b = 234;
+                        if (typeof color === 'string' && color[0] === '#' && (color.length === 7 || color.length === 4)) {
+                            const hex = color.length === 4
+                                ? '#' + color[1]+color[1]+color[2]+color[2]+color[3]+color[3]
+                                : color;
+                            r = parseInt(hex.slice(1, 3), 16);
+                            g = parseInt(hex.slice(3, 5), 16);
+                            b = parseInt(hex.slice(5, 7), 16);
+                        }
+                        ctx.fillStyle = `rgba(${r},${g},${b},${alpha})`
+                    } else {
+                        ctx.fillStyle = color + brightness.toString(16).padStart(2, '0')
+                    }
 
                     const pos = grid[x][y]
                     ctx.fillRect(pos.x, pos.y, GRID_SIZE, GRID_SIZE)

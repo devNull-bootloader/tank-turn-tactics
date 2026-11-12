@@ -5,22 +5,22 @@
     <%- include('../../partials/header.html') %>
 
     <div>
-        <h2>Join a game</h2>
+        <h2><%= t('join.title') %></h2>
 
         <form action="/game/player" method="POST">
             <p class="error"></p>
 
-            <label for="gameId">Game code:</label>
+            <label for="gameId"><%= t('join.gameCode') %></label>
             <input id="gameId" name="gameId"/>
 
             <% if (usePassphrase) { %>
-                <label for="passphrase">Passphrase</label>
+                <label for="passphrase"><%= t('join.passphrase') %></label>
                 <input id="passphrase" name="passphrase"/>
             <% } %>
 
             <%- include('../../partials/player_creation_card.ejs') %>
 
-            <button type="submit">Join</button>
+            <button type="submit"><%= t('join.join') %></button>
         </form>
     </div>
 </div>
@@ -31,13 +31,13 @@
     if (error) {
         switch (error) {
             case 'nonexistent':
-                error = "Game does not exist!";
+                error = window.t('join.nonexistent');
                 break;
             case 'gameStarted':
-                error = "Game has already started!";
+                error = window.t('join.gameStarted');
                 break;
             case 'server':
-                error = "Server error! Please try again in a few minutes!";
+                error = window.t('join.server');
                 break;
         }
     }

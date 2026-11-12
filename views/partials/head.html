@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="<%= typeof lang !== 'undefined' ? lang : 'en' %>">
 <head>
     <meta charset="UTF-8">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -10,5 +10,20 @@
     <link rel="prefetch" href="/assets/fonts/Uni Sans Thin.woff2" as="font" crossorigin="anonymous" >
     <link rel="icon" href="/assets/icon.png">
     <link rel="stylesheet" href="css/index.css">
-    <title>Tank Turn Tactics</title>
+    <title><%= typeof t === 'function' ? t('meta.title') : 'Tank Turn Tactics' %></title>
+    <script>
+        window.LANG = <%- JSON.stringify(typeof lang !== 'undefined' ? lang : 'en') %>;
+        window.I18N = <%- typeof i18nJson !== 'undefined' ? i18nJson : '{}' %>;
+        window.t = function (key, vars) {
+            const parts = String(key).split('.');
+            let cur = window.I18N || {};
+            for (const part of parts) {
+                if (cur == null || cur[part] == null) return key;
+                cur = cur[part];
+            }
+            return String(cur).replace(/\{(\w+)\}/g, function (_, name) {
+                return vars && vars[name] != null ? String(vars[name]) : '{' + name + '}';
+            });
+        };
+    </script>
 </head>

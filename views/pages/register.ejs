@@ -2,7 +2,7 @@
 
 <div class="section">
     <div class="area">
-        <h1>Register</h1>
+        <h1><%= t('auth.register') %></h1>
 
         <form action="/auth/register" method="post">
             <div>
@@ -10,19 +10,29 @@
                 <script>
                     const urlParams = new URLSearchParams(window.location.search);
                     const error = urlParams.get('error')
-                    if (error) document.querySelector("p.error").innerHTML = "User with that e-mail already exists!"
+                    if (error === 'invalid') {
+                        document.querySelector("p.error").innerHTML = window.t('auth.usernameInvalid')
+                    } else if (error) {
+                        document.querySelector("p.error").innerHTML = window.t('auth.usernameTaken')
+                    }
                 </script>
 
-                <label for="email">E-mail: </label>
-                <input type="email" id="email" name="email" required/>
+                <label for="username"><%= t('auth.username') %> </label>
+                <input type="text" id="username" name="username" autocomplete="username" minlength="3" maxlength="24" pattern="[A-Za-z0-9_]+" required/>
 
                 <br/>
 
-                <label for="password">Password: </label>
-                <input type="password" id="password" name="password" required/>
+                <label for="password"><%= t('auth.password') %> </label>
+                <input type="password" id="password" name="password" autocomplete="new-password" required/>
             </div>
-            <button type="submit">Register</button>
+            <button type="submit"><%= t('auth.register') %></button>
         </form>
+
+        <form action="/auth/guest" method="post" style="margin-top: 12px;">
+            <button type="submit"><%= t('auth.continueGuest') %></button>
+        </form>
+
+        <a href="/login"><%= t('auth.alreadyHaveAccount') %></a>
     </div>
 </div>
 

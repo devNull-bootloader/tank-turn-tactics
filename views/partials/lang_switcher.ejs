@@ -1,0 +1,31 @@
+<div class="langSwitcher" aria-label="<%= t('meta.language') %>">
+    <a class="langLink<%= lang === 'en' ? ' active' : '' %>" href="/lang/en?next=<%= encodeURIComponent(typeof currentPath !== 'undefined' ? currentPath : '/') %>">EN</a>
+    <span class="langSep">|</span>
+    <a class="langLink<%= lang === 'de' ? ' active' : '' %>" href="/lang/de?next=<%= encodeURIComponent(typeof currentPath !== 'undefined' ? currentPath : '/') %>">DE</a>
+</div>
+
+<style>
+    .langSwitcher {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-family: Uni-Sans, Georama, serif;
+        pointer-events: all;
+        z-index: 20;
+    }
+    .langSwitcher .langLink {
+        color: rgba(255,255,255,0.7);
+        text-decoration: none;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+    }
+    .langSwitcher .langLink.active,
+    .langSwitcher .langLink:hover {
+        color: #fff;
+        text-decoration: underline;
+    }
+    .langSwitcher .langSep {
+        color: rgba(255,255,255,0.35);
+        font-size: 12px;
+    }
+</style>

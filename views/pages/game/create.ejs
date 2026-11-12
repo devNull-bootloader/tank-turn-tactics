@@ -4,16 +4,16 @@
 <div class="container">
     <%- include('../../partials/header.html') %>
    <div>
-       <h2>Create Game</h2>
+       <h2><%= t('create.title') %></h2>
        <form action="/game" method="POST">
            <div class="formItem">
-           <label for="name">Name: </label>
+           <label for="name"><%= t('create.name') %> </label>
            <input id="name" name="name" required/>
            </div>
 
            <div class="formItem">
 
-           <label for="size">Map size: </label>
+           <label for="size"><%= t('create.mapSize') %> </label>
            <select id="size" name="size">
                <option value="10">10x10</option>
                <option value="20">20x20</option>
@@ -23,20 +23,20 @@
            </div>
 
            <div class="formItem">
-           <label for="turnTime">Actions Interval: </label>
+           <label for="turnTime"><%= t('create.actionsInterval') %> </label>
            <select id="turnTime" name="turnTime">
-               <option value=24>24 hours</option>
-               <option value=12>12 hours</option>
-               <option value=6>6 hours</option>
-               <option value=4>4 hours</option>
-               <option value=3>3 hours</option>
-               <option value=2>2 hours</option>
-               <option value=1>1 hour</option>
+               <option value=24><%= t('create.hours', { n: 24 }) %></option>
+               <option value=12><%= t('create.hours', { n: 12 }) %></option>
+               <option value=6><%= t('create.hours', { n: 6 }) %></option>
+               <option value=4><%= t('create.hours', { n: 4 }) %></option>
+               <option value=3><%= t('create.hours', { n: 3 }) %></option>
+               <option value=2><%= t('create.hours', { n: 2 }) %></option>
+               <option value=1><%= t('create.hour') %></option>
            </select>
            </div>
 
            <div class="formItem">
-           <label for="actionsPerInterval">Action Amount:</label>
+           <label for="actionsPerInterval"><%= t('create.actionAmount') %></label>
            <select id="actionsPerInterval" name="actionsPerInterval">
                <option value=1>1</option>
                <option value=2>2</option>
@@ -48,33 +48,33 @@
            </div>
 
            <div class="formItem">
-           <label for="doActionQueue">Mode</label>
+           <label for="doActionQueue"><%= t('create.mode') %></label>
            <select id="doActionQueue" name="doActionQueue">
-               <option value="false">Asynchronous</option>
-               <option value="true">Rounds (action queue)</option>
+               <option value="false"><%= t('create.modeAsync') %></option>
+               <option value="true"><%= t('create.modeRounds') %></option>
            </select>
            </div>
 
            <div class="formItem" id="broadcastRow">
-               <label for="doBroadcastAction">Broadcast queued actions (spying)</label>
+               <label for="doBroadcastAction"><%= t('create.broadcast') %></label>
                <input type="hidden" name="doBroadcastAction" value="false" />
                <input id="doBroadcastAction" type="checkbox" name="doBroadcastAction" value="true" checked />
            </div>
 
            <div class="formItem">
-               <label for="doFogOfWar">Fog of war</label>
+               <label for="doFogOfWar"><%= t('create.fog') %></label>
                <input type="hidden" name="doFogOfWar" value="false" />
                <input id="doFogOfWar" type="checkbox" name="doFogOfWar" value="true" />
            </div>
 
            <div class="formItem">
-               <label for="doBounty">Daily bounty</label>
+               <label for="doBounty"><%= t('create.bounty') %></label>
                <input type="hidden" name="doBounty" value="false" />
                <input id="doBounty" type="checkbox" name="doBounty" value="true" checked />
            </div>
 
            <div class="formItem">
-               <label for="allowAlwaysJoin">Allow always join</label>
+               <label for="allowAlwaysJoin"><%= t('create.alwaysJoin') %></label>
                <input type="hidden" name="allowAlwaysJoin" value="false" />
                <input id="allowAlwaysJoin" type="checkbox" name="allowAlwaysJoin" value="true" />
            </div>
@@ -100,7 +100,7 @@
 
            <%- include('../../partials/player_creation_card.ejs') %>
 
-           <button type="submit">Create</button>
+           <button type="submit"><%= t('create.create') %></button>
        </form>
    </div>
 </div>
@@ -108,7 +108,7 @@
 
 <style>
     input, select {
-        float:right;
+        margin: 10px 0;
     }
 </style>
 

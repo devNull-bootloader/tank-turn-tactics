@@ -44,6 +44,12 @@ module.exports.checkGame = async function (req, res, next) {
     const gameId = req.params.gameId;
 
     req.game = await Game.findById(gameId);
+    if (!req.game) {
+        return res.status(404).send('Game not found');
+    }
+    if (!req.game.hasStarted) {
+        return res.status(403).send('Game has not started');
+    }
 
     next();
 }

@@ -6,8 +6,8 @@
 <div id="gameTableContainer" class="container">
     <%- include('../partials/header.html') %>
     <div id="gamesCard">
-        <h2>Welcome, <%= user %></h2>
-        <h3>Games:</h3>
+        <h2><%= t('home.welcome', { name: user }) %></h2>
+        <h3><%= t('home.games') %></h3>
         <div id="tableContainer">
             <div id="gameTable"></div>
         </div>

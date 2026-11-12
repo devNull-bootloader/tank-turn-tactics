@@ -82,7 +82,7 @@ class MoveGui extends Driver.ActiveComponent {
         if (this.destinations.includes(hoveredBox)) {
             // Final spot
             if (this.destinations.indexOf(hoveredBox) === this.destinations.length - 1) {
-                updateHint("Move", `[${ getChar(hoveredBox.coords.x) }${ hoveredBox.coords.y + 1 }] ` + "Press 'Enter' or click again to commit movement", "Press escape to cancel", c_moveLine)
+                updateHint("Move", `[${ getChar(hoveredBox.coords.x) }${ hoveredBox.coords.y + 1 }] ` + (window.t ? window.t('game.controlsMove') : "Press Enter or click again to go"), "Esc to cancel", c_moveLine)
                 moveType = MOVE.CONFIRM
             } else {
                 updateHint("Move", "Click to remove succeeding waypoints", "Press escape to cancel")

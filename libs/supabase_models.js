@@ -64,6 +64,10 @@ function mapRow(row) {
     doc.doFogOfWar = row.do_fog_of_war;
     doc.doBounty = row.do_bounty;
     doc.doEscort = row.do_escort;
+    doc.vsBots = row.vs_bots;
+    doc.quickMatch = row.quick_match;
+    doc.isTutorial = row.is_tutorial;
+    doc.isBot = row.is_bot;
     doc.actionLog = row.action_log || [];
     doc.actions = row.actions || [];
     doc.createdAt = row.created_at;
@@ -107,6 +111,15 @@ function gameToRow(data) {
     if (data.allowAlwaysJoin !== undefined || data.allow_always_join !== undefined) {
         row.allow_always_join = data.allowAlwaysJoin ?? data.allow_always_join;
     }
+    if (data.vsBots !== undefined || data.vs_bots !== undefined) {
+        row.vs_bots = data.vsBots ?? data.vs_bots;
+    }
+    if (data.quickMatch !== undefined || data.quick_match !== undefined) {
+        row.quick_match = data.quickMatch ?? data.quick_match;
+    }
+    if (data.isTutorial !== undefined || data.is_tutorial !== undefined) {
+        row.is_tutorial = data.isTutorial ?? data.is_tutorial;
+    }
     if (data.actions !== undefined) row.actions = data.actions;
     if (data.actionLog !== undefined || data.action_log !== undefined) {
         row.action_log = data.actionLog ?? data.action_log;
@@ -125,6 +138,9 @@ function playerToRow(data) {
     if (data.sight !== undefined) row.sight = data.sight;
     if (data.health !== undefined) row.health = data.health;
     if (data.color !== undefined) row.color = data.color;
+    if (data.isBot !== undefined || data.is_bot !== undefined) {
+        row.is_bot = data.isBot ?? data.is_bot;
+    }
     if (data.bounty_target !== undefined) row.bounty_target = toId(data.bounty_target);
     if (data.vote_jury !== undefined) row.vote_jury = toId(data.vote_jury);
     return row;
@@ -169,27 +185,50 @@ function thenable(executor) {
     return api;
 }
 
+function mapUserRow(row) {
+    const doc = mapRow(row);
+    if (!doc) return null;
+    doc.username = row.username || (row.email ? String(row.email).split('@')[0] : null);
+    doc.guest = !!row.guest;
+    doc.debug = !!row.debug;
+    doc.bot = !!row.bot;
+    doc.admin = !!row.admin;
+    doc.email = row.email || null;
+    // passport / templates expect .id
+    doc.id = toId(doc._id);
+    return doc;
+}
+
 const User = function User(data = {}) {
     if (!(this instanceof User)) return new User(data);
     const id = asId(data._id || data.id || randomUUID());
     Object.assign(this, {
         _id: id,
-        email: data.email,
+        id: toId(id),
+        username: data.username,
+        email: data.email || null,
         hash: data.hash,
         salt: data.salt,
+        guest: !!data.guest,
+        debug: !!data.debug,
+        bot: !!data.bot,
         admin: !!data.admin
     });
     this.save = async () => {
         const { data: row, error } = await db().from('users').upsert({
             id: toId(this._id),
+            username: this.username,
             email: this.email,
             hash: this.hash,
             salt: this.salt,
+            guest: !!this.guest,
+            debug: !!this.debug,
+            bot: !!this.bot,
             admin: !!this.admin,
             updated_at: new Date().toISOString()
         }).select('*').single();
         if (error) throw error;
-        Object.assign(this, mapRow(row));
+        Object.assign(this, mapUserRow(row));
         return this;
     };
 };
@@ -197,14 +236,19 @@ const User = function User(data = {}) {
 User.findOne = function findOne(query = {}, callback) {
     const result = thenable(async () => {
         let q = db().from('users').select('*');
+        if (query.username) q = q.eq('username', query.username);
         if (query.email) q = q.eq('email', query.email);
         if (query._id || query.id) q = q.eq('id', toId(query._id || query.id));
         const { data, error } = await q.maybeSingle();
         if (error) throw error;
-        return attachSave(mapRow(data), 'users', (d) => ({
+        return attachSave(mapUserRow(data), 'users', (d) => ({
+            username: d.username,
             email: d.email,
             hash: d.hash,
             salt: d.salt,
+            guest: !!d.guest,
+            debug: !!d.debug,
+            bot: !!d.bot,
             admin: !!d.admin,
             updated_at: new Date().toISOString()
         }));
@@ -239,6 +283,9 @@ const Game = function Game(data = {}) {
         doBroadcastAction: data.doBroadcastAction ?? true,
         doFogOfWar: data.doFogOfWar ?? false,
         doBounty: data.doBounty ?? true,
+        vsBots: data.vsBots ?? false,
+        quickMatch: data.quickMatch ?? false,
+        isTutorial: data.isTutorial ?? false,
         actions: data.actions ?? [],
         actionLog: data.actionLog ?? []
     });
@@ -332,6 +379,7 @@ const Player = function Player(data = {}) {
         sight: data.sight ?? 1,
         health: data.health ?? 3,
         color: data.color ?? '#00ffc3',
+        isBot: data.isBot ?? false,
         bounty_target: data.bounty_target ? asId(data.bounty_target) : null,
         vote_jury: data.vote_jury ? asId(data.vote_jury) : null
     });

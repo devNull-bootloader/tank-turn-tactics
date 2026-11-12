@@ -2,7 +2,7 @@ const router = require('express').Router();
 const { createGameRequest, joinGameRequest, getGameRequest, startGameRequest, getUserGamesRequest, getPlayerRequest, getPlayers, deleteGameRequest, getAllGamesRequest,
     renamePlayerRequest,editGameRequest
 } = require('../controllers/GameController.js')
-const { isAdmin } = require("../middlewares/auth_middleware.js");
+const { isAdmin, isLoggedIn, isGameCreatorOrAdmin } = require("../middlewares/auth_middleware.js");
 
 // Admin
 
@@ -14,21 +14,21 @@ router.put('/:gameId', isAdmin, editGameRequest)
 
 // User
 
-router.post('/', createGameRequest);
+router.post('/', isLoggedIn, createGameRequest);
 
-router.get('/user', getUserGamesRequest)
+router.get('/user', isLoggedIn, getUserGamesRequest)
 
-router.get('/:gameId/player', getPlayerRequest)
+router.get('/:gameId/player', isLoggedIn, getPlayerRequest)
 
-router.get('/:gameId/players', getPlayers)
+router.get('/:gameId/players', isLoggedIn, getPlayers)
 
-router.get('/:gameId', getGameRequest);
+router.get('/:gameId', isLoggedIn, getGameRequest);
 
-router.post('/player', joinGameRequest);
+router.post('/player', isLoggedIn, joinGameRequest);
 
-router.patch('/:gameId/start', startGameRequest);
+router.patch('/:gameId/start', isLoggedIn, isGameCreatorOrAdmin, startGameRequest);
 
-router.patch('/:gameId/rename/:name', renamePlayerRequest)
+router.patch('/:gameId/rename/:name', isLoggedIn, renamePlayerRequest)
 
 
 

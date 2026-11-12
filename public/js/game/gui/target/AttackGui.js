@@ -43,7 +43,7 @@ class AttackGui extends TargetGui {
             }
         } else {
             if (this.selectedTarget === hoverTarget) {
-                updateHint("Attack", "Click to commence attack on " + this.selectedTarget.player.name + ". Scroll to adjust power", "Press escape to cancel", c_atkMarkedTarget)
+                updateHint("Attack", (window.t ? window.t('game.controlsAttack') : "Click again to fire") + " → " + this.selectedTarget.player.name, "Scroll = power · Esc = cancel", c_atkMarkedTarget)
                 this.hoverOnSelectedTarget = true;
                 deltaActions = this.count
                 updateInfo()

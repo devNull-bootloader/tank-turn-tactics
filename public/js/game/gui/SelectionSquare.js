@@ -13,7 +13,24 @@ class SelectionSquare extends Driver.ActiveComponent {
         this.animationIndex += 0.5;
         if (this.animationIndex >= 20) this.animationIndex = 0
 
-        if (actionState === ACTION_STATES.SELECT || actionState === ACTION_STATES.BUTTONS) updateHint("Coordinate:", `${ getChar(hoveredBox.coords.x) }${ hoveredBox.coords.y + 1 }`)
+        if (actionState === ACTION_STATES.SELECT || actionState === ACTION_STATES.BUTTONS) {
+            const coord = `${ getChar(hoveredBox.coords.x) }${ hoveredBox.coords.y + 1 }`;
+            if (selectedTank === userTank && USER_PLAYER.actions > 0 && actionState === ACTION_STATES.BUTTONS) {
+                updateHint(
+                    window.t ? window.t('game.controlsTitle') : 'How to play',
+                    window.t ? window.t('game.controlsReady') : 'Click Move or Attack under your tank',
+                    coord
+                );
+            } else if (selectedTank !== userTank || actionState === ACTION_STATES.SELECT) {
+                updateHint(
+                    window.t ? window.t('game.controlsTitle') : 'How to play',
+                    window.t ? window.t('game.controlsIdle') : 'Click your tank to show Move / Attack',
+                    coord
+                );
+            } else {
+                updateHint('Coordinate:', coord);
+            }
+        }
 
     }
 
@@ -73,9 +90,18 @@ class SelectionSquare extends Driver.ActiveComponent {
                 if (selectedTank === userTank) {
                     if (hoveredBox === userTank.box) {
                         if (USER_PLAYER.actions > 0) {
-                            updateHint("Control", "Click to toggle controls")
+                            updateHint(
+                                window.t ? window.t('game.controlsTitle') : 'How to play',
+                                window.t ? window.t('game.controlsReady') : 'Click Move or Attack under your tank',
+                                window.t ? window.t('game.controlsMove') : 'Move: click a square, then confirm'
+                            )
                         } else {
-                            updateHint("Control", "Out of energy!", '.', 'red')
+                            updateHint(
+                                window.t ? window.t('game.controlsTitle') : 'Control',
+                                window.t ? window.t('game.controlsOutOfEnergy') : 'Out of energy!',
+                                '.',
+                                'red'
+                            )
                             actionState = ACTION_STATES.SELECT
                         }
                     }

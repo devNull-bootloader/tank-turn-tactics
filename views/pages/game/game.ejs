@@ -6,7 +6,7 @@
 
 <div id="statsPanel">
     <span id="deathMessage"></span>
-    <a id="openVote">VOTE</a>
+    <a id="openVote"><%= t('game.vote') %></a>
     <span>│</span>
     <span id="gameName"></span>
     <span id="gameTime"></span>
@@ -14,8 +14,10 @@
     <span id="actionsPerInterval"></span>
     <span id="bountyTarget"></span>
     <span>│</span>
-    <span class="options">Range Mode:</span><a id="rangeMode" style="display: inline-block"></a>
-    <span class="options">Range Display:</span><a id="rangeDisplay" style="display: inline-block"></a>
+    <span class="options"><%= t('game.rangeMode') %></span><a id="rangeMode" style="display: inline-block"></a>
+    <span class="options"><%= t('game.rangeDisplay') %></span><a id="rangeDisplay" style="display: inline-block"></a>
+    <span>│</span>
+    <%- include('../../partials/lang_switcher.ejs') %>
 
 
 </div>
@@ -23,16 +25,16 @@
 <div id="gameContainer"></div>
 
 <div id="winScreen" class="panel popupScreen">
-    <h1>Mission Complete</h1>
+    <h1><%= t('game.missionComplete') %></h1>
     <p></p>
-    <a href="/">Return to menu</a>
+    <a href="/"><%= t('game.returnMenu') %></a>
 </div>
 
 <div id="voteScreen" class="panel popupScreen">
-    <h2>Jury</h2>
+    <h2><%= t('game.jury') %></h2>
     <p></p>
     <div id="votes"></div>
-    <a id="closeVote">Close</a>
+    <a id="closeVote"><%= t('game.close') %></a>
 </div>
 
 <div id="infoPanel" class="panel">
@@ -83,6 +85,21 @@
     <h3></h3>
     <p></p>
     <p id="minorHint"></p>
+</div>
+
+<div id="helpBanner" class="panel" hidden>
+    <p></p>
+    <button type="button" id="helpBannerDismiss" aria-label="Dismiss">×</button>
+</div>
+
+<div id="tutorialCoach" class="panel" hidden>
+    <div class="coach-top">
+        <span id="coachStepLabel"></span>
+        <button type="button" id="coachSkip"></button>
+    </div>
+    <h3 id="coachTitle"></h3>
+    <p id="coachBody"></p>
+    <button type="button" id="coachNext"></button>
 </div>
 
 
@@ -176,7 +193,7 @@
             gameOver = true;
 
             document.querySelector("#winScreen").style.display = 'block'
-            document.querySelector("#winScreen p").innerHTML = game.players.find(player => player.health > 0).name + " has emerged victorious"
+            document.querySelector("#winScreen p").innerHTML = window.t('game.victorious', { name: game.players.find(player => player.health > 0).name })
         }
 
         if (firstTime) {
@@ -422,9 +439,9 @@
         document.querySelector('#name').innerHTML = shortenName(player.name)
         document.querySelector('#id').innerHTML = ` &lt${ getChar(player.position.x) }${ player.position.y + 1 }&gt ${ player._id }`
         if (isUser) {
-            document.querySelector('#actions').innerHTML = "Energy: " + player.actions + (deltaActions > 0 ? ` → ${ player.actions - deltaActions }` : '')
+            document.querySelector('#actions').innerHTML = window.t('game.actions', { n: player.actions }) + (deltaActions > 0 ? ` → ${ player.actions - deltaActions }` : '')
         } else {
-            document.querySelector('#actions').innerHTML = "Energy: ?"
+            document.querySelector('#actions').innerHTML = window.t('game.actions', { n: '?' })
         }
         if (player.actions === 0) {
             document.querySelector('#actions').style.color = 'red'
@@ -432,9 +449,9 @@
             document.querySelector('#actions').style.color = 'white'
         }
 
-        document.querySelector('#health').innerHTML = "Health: " + player.health
-        document.querySelector('#range').innerHTML = "Range: " + player.range
-        document.querySelector('#sight').innerHTML = "Sight: " + (player.sight ?? 1)
+        document.querySelector('#health').innerHTML = window.t('game.health', { n: player.health })
+        document.querySelector('#range').innerHTML = window.t('game.range', { n: player.range })
+        document.querySelector('#sight').innerHTML = window.t('game.sight', { n: (player.sight ?? 1) })
     }
 
     const colorPickerInput = document.querySelector("#colorBox")
@@ -506,7 +523,7 @@
                 case 'attack':
                     const symbol = action.killed ? '💀' : '⚔'
                     if (target._id === USER_PLAYER._id && action.killed) {
-                        statsPanel.querySelector('#deathMessage').innerHTML = `You were killed by ${ player.name }`
+                        statsPanel.querySelector('#deathMessage').innerHTML = window.t('game.killedBy', { name: player.name })
                     }
                     message += `<span class="${ playerStyle }">${ playerName }</span> ${ symbol } <span class="${ targetStyle }">${ targetName }</span>`
                     break;
@@ -658,8 +675,86 @@
         statsPanel.querySelector('#gameTime').innerHTML = dateTimeDiff(new Date(), new Date(game.startedAt))
     }
 
-    statsPanel.querySelector('#actionInterval').innerHTML = "Interval Time: " + game.turnTime + " hrs";
-    statsPanel.querySelector('#actionsPerInterval').innerHTML = "Actions per interval: " + game.actionsPerInterval;
+    if (game.quickMatch && game.vsBots) {
+        statsPanel.querySelector('#actionInterval').innerHTML = window.t('game.quickInterval', { n: 15 });
+    } else {
+        statsPanel.querySelector('#actionInterval').innerHTML = window.t('game.interval', { n: game.turnTime });
+    }
+    statsPanel.querySelector('#actionsPerInterval').innerHTML = window.t('game.perInterval', { n: game.actionsPerInterval });
+
+    // Lightweight discoverability for bots / quick matches (and anyone short on AP knowledge)
+    (function initHelpBanner() {
+        const banner = document.querySelector('#helpBanner');
+        if (!banner) return;
+        const key = 'ttt-help-banner-dismissed';
+        if (localStorage.getItem(key) === '1' && !game.isTutorial) {
+            banner.hidden = true;
+            return;
+        }
+        if (game.vsBots || game.quickMatch || game.isTutorial) {
+            banner.hidden = false;
+            banner.querySelector('p').textContent = window.t('game.helpBanner');
+            document.querySelector('#helpBannerDismiss').onclick = () => {
+                banner.hidden = true;
+                localStorage.setItem(key, '1');
+            };
+        }
+    })();
+
+    (function initTutorialCoach() {
+        const coach = document.querySelector('#tutorialCoach');
+        if (!coach || !game.isTutorial) return;
+
+        const steps = [
+            { title: 'coach.welcomeTitle', body: 'coach.welcomeBody' },
+            { title: 'coach.selectTitle', body: 'coach.selectBody' },
+            { title: 'coach.moveTitle', body: 'coach.moveBody' },
+            { title: 'coach.attackTitle', body: 'coach.attackBody' },
+            { title: 'coach.finishTitle', body: 'coach.finishBody', last: true }
+        ];
+        let step = 0;
+
+        function render() {
+            const s = steps[step];
+            coach.hidden = false;
+            document.querySelector('#coachStepLabel').textContent = window.t('coach.step', { n: step + 1, total: steps.length });
+            document.querySelector('#coachTitle').textContent = window.t(s.title);
+            document.querySelector('#coachBody').textContent = window.t(s.body);
+            document.querySelector('#coachSkip').textContent = window.t('coach.skip');
+            document.querySelector('#coachNext').textContent = s.last ? window.t('coach.done') : window.t('coach.next');
+        }
+
+        function dismiss() {
+            coach.hidden = true;
+        }
+
+        document.querySelector('#coachSkip').onclick = dismiss;
+        document.querySelector('#coachNext').onclick = () => {
+            if (step >= steps.length - 1) {
+                dismiss();
+                return;
+            }
+            step += 1;
+            render();
+        };
+
+        // Auto-advance when the player enters Move / Attack modes
+        const prevStateRef = { value: actionState };
+        setInterval(() => {
+            if (coach.hidden) return;
+            if (prevStateRef.value === actionState) return;
+            prevStateRef.value = actionState;
+            if (actionState === ACTION_STATES.MV && step < 2) {
+                step = 2;
+                render();
+            } else if (actionState === ACTION_STATES.ATK && step < 3) {
+                step = 3;
+                render();
+            }
+        }, 400);
+
+        render();
+    })();
 
     function updateBountyLabel() {
         const bountyEl = statsPanel.querySelector('#bountyTarget');
@@ -668,7 +763,7 @@
             return;
         }
         const bountyName = USER_PLAYER && USER_PLAYER.bounty_target_name;
-        bountyEl.innerHTML = bountyName ? `│ Bounty: ${shortenName(bountyName)}` : '│ Bounty: —';
+        bountyEl.innerHTML = '│ ' + window.t('game.bounty', { name: bountyName ? shortenName(bountyName) : '—' });
     }
     updateBountyLabel();
 
