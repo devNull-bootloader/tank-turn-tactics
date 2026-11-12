@@ -15,9 +15,17 @@ const dbOptions = {
 }
 
 let memoryServer = null;
+let connectPromise = null;
+
+function allowMemoryFallback() {
+    return process.env.NODE_ENV === 'development'
+        || process.env.USE_MEMORY_DB === 'true'
+        || process.env.VERCEL === '1';
+}
 
 /**
- * Resolve the MongoDB URI, starting an in-memory server in development when DB_URI is unset.
+ * Resolve the MongoDB URI, starting an in-memory server when DB_URI is unset
+ * in development / Vercel demo mode.
  * @return {Promise<string>}
  */
 async function resolveDbUri() {
@@ -25,7 +33,7 @@ async function resolveDbUri() {
         return process.env.DB_URI;
     }
 
-    if (process.env.NODE_ENV !== 'development') {
+    if (!allowMemoryFallback()) {
         throw new Error('DB_URI environment variable is required outside development');
     }
 
@@ -35,40 +43,48 @@ async function resolveDbUri() {
         binary: { version: '7.0.14' }
     });
     const uri = memoryServer.getUri();
-    console.log('[mongodb] No DB_URI set; using in-memory MongoDB for development');
+    console.log('[mongodb] No DB_URI set; using in-memory MongoDB');
     return uri;
 }
 
 /**
- * Connects to the mongoose database, and emits ready when connected. Retries if failed.
+ * Ensure a single shared mongoose connection (important on Vercel cold starts).
  * @param app
- * @param {string} dbUri
- * @param {number} timeout Timeout in ms
+ * @return {Promise<void>}
  */
-function connectToDB(app, dbUri, timeout) {
-    mongoose.connect(dbUri, dbOptions)
-        .then(m => {
-            console.log(`[mongodb] Connected to database ${m.connection.name}`);
+async function ensureConnected(app) {
+    if (mongoose.connection.readyState === 1) {
+        return;
+    }
 
-            // Set admin user when credentials are configured
+    if (!connectPromise) {
+        connectPromise = (async () => {
+            const dbUri = await resolveDbUri();
+            await mongoose.connect(dbUri, dbOptions);
+            console.log(`[mongodb] Connected to database ${mongoose.connection.name}`);
+
             if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
-                User.findOne({ email: process.env.ADMIN_EMAIL })
-                    .then(player => {
-                        if (!player) {
-                            createUser(process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD, true)
-                                .then(() => console.log("Admin created!"))
-                                .catch(err => console.error('[mongodb] Failed to create admin:', err.message))
-                        }
-                    })
-                    .catch(err => console.error('[mongodb] Admin lookup failed:', err.message))
+                try {
+                    const existing = await User.findOne({ email: process.env.ADMIN_EMAIL });
+                    if (!existing) {
+                        await createUser(process.env.ADMIN_EMAIL, process.env.ADMIN_PASSWORD, true);
+                        console.log('Admin created!');
+                    }
+                } catch (err) {
+                    console.error('[mongodb] Admin setup failed:', err.message);
+                }
             }
 
-            app.emit('ready')
-        })
-        .catch(err => {
-            console.error('[mongodb] ' + err + ', retrying in ' + timeout / 1000 + ' seconds')
-            setTimeout(() => connectToDB(app, dbUri, timeout), timeout)
+            if (app && typeof app.emit === 'function') {
+                app.emit('ready');
+            }
+        })().catch(err => {
+            connectPromise = null;
+            throw err;
         });
+    }
+
+    await connectPromise;
 }
 
 /**
@@ -76,10 +92,10 @@ function connectToDB(app, dbUri, timeout) {
  * @return {Promise<{dbUri: string, dbOptions: object}>}
  */
 module.exports = async function (app) {
-    const dbUri = await resolveDbUri();
-    connectToDB(app, dbUri, 5000)
-
-    return { dbUri, dbOptions }
+    const dbUri = process.env.DB_URI || 'memory';
+    await ensureConnected(app);
+    return { dbUri: process.env.DB_URI || memoryServer?.getUri?.() || dbUri, dbOptions }
 };
 
+module.exports.ensureConnected = ensureConnected;
 module.exports.getMemoryServer = () => memoryServer;
