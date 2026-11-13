@@ -53,15 +53,41 @@ module.exports.UPGRADE_COST = UPGRADE_COST;
  * @param {Object} data
  * @return {number}
  */
+/**
+ * Parse a positive integer count (rejects NaN, <=0, non-integers, and oversized values).
+ * @param {*} value
+ * @param {{ max?: number }} [opts]
+ * @return {number|null}
+ */
+module.exports.parsePositiveInt = function (value, opts = {}) {
+    const max = opts.max != null ? opts.max : 1000;
+    const n = typeof value === 'number' ? value : parseInt(value, 10);
+    if (!Number.isInteger(n) || n <= 0 || n > max) {
+        return null;
+    }
+    return n;
+}
+
 module.exports.actionPointCost = function (action, data) {
     switch (action) {
-        case 'move':
-            return Array.isArray(data.positions) ? data.positions.length : 0;
+        case 'move': {
+            if (!Array.isArray(data.positions) || data.positions.length === 0) {
+                return 0;
+            }
+            return data.positions.length;
+        }
         case 'attack':
-        case 'give':
-            return parseInt(data.count, 10) || 0;
-        case 'upgrade':
-            return (UPGRADE_COST[data.upgrade] || 0) * (parseInt(data.count, 10) || 0);
+        case 'give': {
+            const count = module.exports.parsePositiveInt(data.count);
+            return count == null ? 0 : count;
+        }
+        case 'upgrade': {
+            const count = module.exports.parsePositiveInt(data.count);
+            if (count == null || !UPGRADE_COST[data.upgrade]) {
+                return 0;
+            }
+            return UPGRADE_COST[data.upgrade] * count;
+        }
         default:
             return 0;
     }

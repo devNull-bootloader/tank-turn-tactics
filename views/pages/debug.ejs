@@ -1,0 +1,426 @@
+<%- include('../partials/head.html') %>
+
+<div class="section debug-page">
+    <%- include('../partials/header.html') %>
+
+    <div class="area debug-area">
+        <header class="debug-header">
+            <div>
+                <h1><%= t('debug.title') %></h1>
+                <p class="debug-sub"><%= t('debug.subtitle', { name: user }) %></p>
+            </div>
+            <div class="debug-meta">
+                <span><%= t('debug.intervalMode') %>: <strong><%= intervalMode %></strong></span>
+                <span><%= t('debug.role') %>: <strong><%= isDebug ? t('debug.roleDebug') : t('debug.roleAdmin') %></strong></span>
+            </div>
+        </header>
+
+        <% if (!games || games.length === 0) { %>
+            <p class="debug-empty"><%= t('debug.noGames') %></p>
+        <% } %>
+
+        <% (games || []).forEach(function (game) { %>
+            <section class="debug-game" data-game-id="<%= game.id %>">
+                <div class="debug-game__head">
+                    <h2><%= game.name %></h2>
+                    <span class="debug-pill <%= game.isUnplayed ? 'is-lobby' : (game.isFinished ? 'is-finished' : 'is-live') %>">
+                        <%= game.isUnplayed ? t('debug.stateUnplayed') : (game.isFinished ? t('debug.stateFinished') : t('debug.stateStarted')) %>
+                    </span>
+                    <a class="debug-link" href="/play?game=<%= game.id %>"><%= t('debug.openGame') %></a>
+                    <button type="button" class="debug-delete" data-action="delete-game"><%= t('debug.deleteGame') %></button>
+                </div>
+
+                <div class="debug-grid">
+                    <div class="debug-block">
+                        <h3><%= t('debug.roundControls') %></h3>
+                        <p class="debug-metric">
+                            <%= t('debug.turnProgress') %>:
+                            <strong data-field="turn"><%= game.turnTimePassed %></strong>
+                            /
+                            <strong data-field="turn-time"><%= game.turnTime %></strong>
+                        </p>
+                        <p class="debug-metric">
+                            <%= t('debug.queue') %>:
+                            <strong data-field="queue"><%= game.queuedActions %></strong>
+                        </p>
+                        <div class="debug-actions">
+                            <button type="button" data-action="tick" <%= game.hasStarted ? '' : 'disabled' %>><%= t('debug.tick') %></button>
+                            <button type="button" data-action="force-round" <%= game.hasStarted ? '' : 'disabled' %>><%= t('debug.forceRound') %></button>
+                            <button type="button" data-action="resolve-queue" <%= game.hasStarted ? '' : 'disabled' %>><%= t('debug.resolveQueue') %></button>
+                            <button type="button" data-action="clear-queue"><%= t('debug.clearQueue') %></button>
+                            <button type="button" data-action="grant-ap"><%= t('debug.grantAp') %></button>
+                        </div>
+                        <form class="debug-turn-form" data-action="set-turn">
+                            <label>
+                                <%= t('debug.turnTimePassed') %>
+                                <input type="number" name="turnTimePassed" min="0" value="<%= game.turnTimePassed %>" />
+                            </label>
+                            <label>
+                                <%= t('debug.turnTime') %>
+                                <input type="number" name="turnTime" min="1" value="<%= game.turnTime %>" />
+                            </label>
+                            <label>
+                                <%= t('debug.actionsPerInterval') %>
+                                <input type="number" name="actionsPerInterval" min="0" value="<%= game.actionsPerInterval %>" />
+                            </label>
+                            <button type="submit"><%= t('debug.saveTurn') %></button>
+                        </form>
+                    </div>
+
+                    <div class="debug-block">
+                        <h3><%= t('debug.settings') %></h3>
+                        <form class="debug-settings-form" data-action="settings">
+                            <label class="debug-check">
+                                <input type="checkbox" name="doActionQueue" <%= game.doActionQueue ? 'checked' : '' %> />
+                                <%= t('create.modeRounds') %>
+                            </label>
+                            <label class="debug-check">
+                                <input type="checkbox" name="doBroadcastAction" <%= game.doBroadcastAction ? 'checked' : '' %> />
+                                <%= t('create.broadcast') %>
+                            </label>
+                            <label class="debug-check">
+                                <input type="checkbox" name="doFogOfWar" <%= game.doFogOfWar ? 'checked' : '' %> />
+                                <%= t('create.fog') %>
+                            </label>
+                            <label class="debug-check">
+                                <input type="checkbox" name="doBounty" <%= game.doBounty ? 'checked' : '' %> />
+                                <%= t('create.bounty') %>
+                            </label>
+                            <label class="debug-check">
+                                <input type="checkbox" name="allowAlwaysJoin" <%= game.allowAlwaysJoin ? 'checked' : '' %> />
+                                <%= t('create.alwaysJoin') %>
+                            </label>
+                            <button type="submit"><%= t('debug.saveSettings') %></button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="debug-block">
+                    <h3><%= t('debug.players') %></h3>
+                    <% if (!game.players.length) { %>
+                        <p class="debug-empty"><%= t('debug.noPlayers') %></p>
+                    <% } else { %>
+                        <table class="debug-table">
+                            <thead>
+                            <tr>
+                                <th><%= t('debug.colName') %></th>
+                                <th><%= t('debug.colHealth') %></th>
+                                <th><%= t('debug.colAp') %></th>
+                                <th><%= t('debug.colRange') %></th>
+                                <th><%= t('debug.colSight') %></th>
+                                <th></th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            <% game.players.forEach(function (player) { %>
+                                <tr data-player-id="<%= player.id %>">
+                                    <td><input type="text" name="name" value="<%= player.name %>" maxlength="32" /></td>
+                                    <td><input type="number" name="health" value="<%= player.health %>" /></td>
+                                    <td><input type="number" name="actions" value="<%= player.actions %>" /></td>
+                                    <td><input type="number" name="range" value="<%= player.range %>" /></td>
+                                    <td><input type="number" name="sight" value="<%= player.sight %>" /></td>
+                                    <td><button type="button" data-action="save-player"><%= t('debug.savePlayer') %></button></td>
+                                </tr>
+                            <% }) %>
+                            </tbody>
+                        </table>
+                    <% } %>
+                </div>
+
+                <p class="debug-status" data-status hidden></p>
+            </section>
+        <% }) %>
+    </div>
+</div>
+
+<style>
+    .debug-page {
+        align-items: stretch;
+    }
+
+    .debug-area {
+        flex: 1;
+        max-width: 980px;
+        width: 100%;
+        padding: 20px 24px 48px;
+        overflow: auto;
+    }
+
+    .debug-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 20px;
+    }
+
+    .debug-header h1 {
+        margin: 0 0 4px;
+    }
+
+    .debug-sub,
+    .debug-meta,
+    .debug-metric,
+    .debug-empty {
+        opacity: 0.8;
+    }
+
+    .debug-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        align-items: flex-end;
+    }
+
+    .debug-game {
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        padding: 18px 0 8px;
+        margin-bottom: 12px;
+    }
+
+    .debug-game__head {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+
+    .debug-game__head h2 {
+        margin: 0;
+    }
+
+    .debug-pill {
+        font-size: 0.8em;
+        padding: 2px 8px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 999px;
+    }
+
+    .debug-pill.is-live {
+        border-color: rgba(255, 255, 255, 0.45);
+        color: #fff;
+    }
+
+    .debug-pill.is-finished {
+        opacity: 0.75;
+    }
+
+    .debug-link {
+        margin-left: auto;
+    }
+
+    .debug-delete {
+        border-color: rgba(255, 120, 120, 0.45);
+        color: #ffb4b4;
+    }
+
+    .debug-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 16px;
+        margin-bottom: 16px;
+    }
+
+    .debug-block h3 {
+        margin: 0 0 10px;
+        font-size: 1.05rem;
+    }
+
+    .debug-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 10px 0 14px;
+    }
+
+    .debug-turn-form,
+    .debug-settings-form {
+        display: grid;
+        gap: 8px;
+    }
+
+    .debug-turn-form label,
+    .debug-settings-form label {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .debug-check {
+        justify-content: flex-start !important;
+    }
+
+    .debug-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .debug-table th,
+    .debug-table td {
+        text-align: left;
+        padding: 6px 4px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .debug-table input[type="number"],
+    .debug-table input[type="text"],
+    .debug-turn-form input {
+        width: 72px;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: inherit;
+        padding: 4px 6px;
+    }
+
+    .debug-table input[type="text"] {
+        width: 110px;
+    }
+
+    .debug-status {
+        margin-top: 10px;
+        color: #b9f0c5;
+    }
+
+    .debug-status.is-error {
+        color: #ff9b9b;
+    }
+
+    button:disabled {
+        opacity: 0.45;
+        cursor: not-allowed;
+    }
+</style>
+
+<script>
+    (function () {
+        async function postJson(url, body) {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                body: JSON.stringify(body || {})
+            });
+            const data = await res.json().catch(function () { return {}; });
+            if (!res.ok || data.ok === false) {
+                throw new Error(data.message || ('HTTP ' + res.status));
+            }
+            return data;
+        }
+
+        function setStatus(section, message, isError) {
+            const node = section.querySelector('[data-status]');
+            if (!node) return;
+            node.hidden = !message;
+            node.textContent = message || '';
+            node.classList.toggle('is-error', !!isError);
+        }
+
+        document.querySelectorAll('.debug-game').forEach(function (section) {
+            const gameId = section.getAttribute('data-game-id');
+
+            section.querySelectorAll('[data-action]').forEach(function (btn) {
+                if (btn.tagName === 'FORM') return;
+                btn.addEventListener('click', async function () {
+                    const action = btn.getAttribute('data-action');
+                    try {
+                        let data;
+                        if (action === 'tick') {
+                            data = await postJson('/debug/games/' + gameId + '/tick');
+                        } else if (action === 'force-round') {
+                            data = await postJson('/debug/games/' + gameId + '/force-round');
+                        } else if (action === 'resolve-queue') {
+                            data = await postJson('/debug/games/' + gameId + '/resolve-queue');
+                        } else if (action === 'clear-queue') {
+                            data = await postJson('/debug/games/' + gameId + '/clear-queue');
+                        } else if (action === 'grant-ap') {
+                            data = await postJson('/debug/games/' + gameId + '/grant-ap', { amount: 1 });
+                        } else if (action === 'save-player') {
+                            const row = btn.closest('tr');
+                            const playerId = row.getAttribute('data-player-id');
+                            data = await postJson('/debug/players/' + playerId, {
+                                name: row.querySelector('[name="name"]').value,
+                                health: row.querySelector('[name="health"]').value,
+                                actions: row.querySelector('[name="actions"]').value,
+                                range: row.querySelector('[name="range"]').value,
+                                sight: row.querySelector('[name="sight"]').value
+                            });
+                        } else if (action === 'delete-game') {
+                            const confirmMsg = (typeof window.t === 'function')
+                                ? window.t('debug.deleteConfirm')
+                                : 'Delete this match?';
+                            if (!window.confirm(confirmMsg)) return;
+                            data = await postJson('/debug/games/' + gameId + '/delete');
+                            section.remove();
+                            return;
+                        } else {
+                            return;
+                        }
+
+                        if (data.turnTimePassed != null) {
+                            const turn = section.querySelector('[data-field="turn"]');
+                            if (turn) turn.textContent = data.turnTimePassed;
+                        }
+                        if (data.turnTime != null) {
+                            const turnTime = section.querySelector('[data-field="turn-time"]');
+                            if (turnTime) turnTime.textContent = data.turnTime;
+                        }
+                        if (data.queuedActions != null) {
+                            const queue = section.querySelector('[data-field="queue"]');
+                            if (queue) queue.textContent = data.queuedActions;
+                        }
+                        setStatus(section, window.t('debug.ok'), false);
+                    } catch (err) {
+                        setStatus(section, err.message || String(err), true);
+                    }
+                });
+            });
+
+            const turnForm = section.querySelector('.debug-turn-form');
+            if (turnForm) {
+                turnForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+                    const fd = new FormData(turnForm);
+                    try {
+                        const data = await postJson('/debug/games/' + gameId + '/turn', {
+                            turnTimePassed: fd.get('turnTimePassed'),
+                            turnTime: fd.get('turnTime'),
+                            actionsPerInterval: fd.get('actionsPerInterval')
+                        });
+                        const turn = section.querySelector('[data-field="turn"]');
+                        const turnTime = section.querySelector('[data-field="turn-time"]');
+                        if (turn) turn.textContent = data.turnTimePassed;
+                        if (turnTime) turnTime.textContent = data.turnTime;
+                        setStatus(section, window.t('debug.ok'), false);
+                    } catch (err) {
+                        setStatus(section, err.message || String(err), true);
+                    }
+                });
+            }
+
+            const settingsForm = section.querySelector('.debug-settings-form');
+            if (settingsForm) {
+                settingsForm.addEventListener('submit', async function (event) {
+                    event.preventDefault();
+                    const payload = {};
+                    settingsForm.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+                        payload[input.name] = input.checked;
+                    });
+                    try {
+                        const res = await fetch('/debug/games/' + gameId + '/settings', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        if (!res.ok) throw new Error('HTTP ' + res.status);
+                        setStatus(section, window.t('debug.ok'), false);
+                    } catch (err) {
+                        setStatus(section, err.message || String(err), true);
+                    }
+                });
+            }
+        });
+    })();
+</script>
+
+<%- include('../partials/footer.html') %>

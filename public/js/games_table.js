@@ -29,19 +29,20 @@ function generateGamesTable(tableQuery, gameObjects) {
 
     if (table.length) table = table[0];
 
-    const tableHeaders = [ 'Game', 'Players', 'State' ]
+    const tt = (key, vars) => (typeof window.t === 'function' ? window.t(key, vars) : key);
+    const tableHeaders = [ tt('home.colGame'), tt('home.colPlayers'), tt('home.colState') ]
 
     const tableRows = games.map(game => {
         const gameLink = document.createElement("a");
         gameLink.href = "/play?game=" + game._id
         gameLink.innerHTML = game.name;
 
-        let message = 'Day ' + dateDiffInDays(new Date(), new Date(game.startedAt));
+        let message = tt('home.stateDay', { n: dateDiffInDays(new Date(), new Date(game.startedAt)) });
 
         if (!game.hasStarted) {
-            message = 'Lobby'
+            message = tt('home.stateLobby')
         } else if (game.players.filter(p => p.health > 0).length <= 1) {
-            message = 'Finished'
+            message = tt('home.stateFinished')
         }
 
         return [

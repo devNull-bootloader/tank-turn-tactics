@@ -4,15 +4,16 @@
 
 <div class="section">
     <div class="area">
-        <h1>Waiting for "<%= game.name %>" to start</h1>
+        <h1><%= t('lobby.waiting', { name: game.name }) %></h1>
 
-        <label for="invite">Invite link: </label>
+        <label for="invite"><%= t('lobby.invite') %> </label>
         <input id="invite" readonly/>
-        <button id="copy">Copy</button>
+        <button id="copy"><%= t('lobby.copy') %></button>
 
         <div id="playerList">
-            <h2>Players:</h2>
+            <h2><%= t('lobby.players') %></h2>
         </div>
+        <div style="margin-top: 12px;"><%- include('../../partials/lang_switcher.ejs') %></div>
 
         <script>
             const urlParams = new URLSearchParams(window.location.search);
@@ -21,7 +22,7 @@
 
         <% if (isCreator) { %>
             <br>
-            <button id="startGame">Start!</button>
+            <button id="startGame"><%= t('lobby.start') %></button>
             <script>
                 const startButton = document.querySelector("#startGame");
 

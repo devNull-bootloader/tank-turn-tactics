@@ -125,12 +125,13 @@ describe("ActionController: Immediate", () => {
         let targetPlayer;
         let req;
         beforeEach(async () => {
+            const gameId = mongoose.Types.ObjectId();
             targetPlayer = await new Player({
                 name: "test", position: { x: 0, y: 1 }, user_id: mongoose.Types.ObjectId(),
-                game_id: mongoose.Types.ObjectId()
+                game_id: gameId
             }).save()
 
-            mainPlayer = await new Player(defaultPlayerData).save();
+            mainPlayer = await new Player({ ...defaultPlayerData, game_id: gameId }).save();
 
             req = {
                 player: mainPlayer,
@@ -138,7 +139,7 @@ describe("ActionController: Immediate", () => {
                     targetId: targetPlayer._id,
                     count: 1
                 },
-                game: defaultGameImmediate
+                game: { ...defaultGameImmediate, _id: gameId }
             }
         })
 

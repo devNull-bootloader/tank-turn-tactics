@@ -37,6 +37,10 @@ if (useSupabase) {
             type: String,
             default: "#00ffc3"
         },
+        isBot: {
+            type: Boolean,
+            default: false
+        },
 
         // Daily bounty target (doBounty games)
         bounty_target: {

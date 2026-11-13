@@ -1,7 +1,7 @@
 
-<h2>Character Info</h2>
+<h2><%= t('player.displayName').replace(':', '') %></h2>
 <div class="formItem">
-    <label for="displayName">Display Name: </label>
+    <label for="displayName"><%= t('player.displayName') %> </label>
     <input id="displayName" name="displayName" placeholder="<%= name %>"/>
 </div>
 

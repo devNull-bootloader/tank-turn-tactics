@@ -1,0 +1,103 @@
+<%- include('../partials/head.html') %>
+
+<% const tutorial = typeof isTutorial !== 'undefined' && isTutorial; %>
+
+<div class="section">
+    <%- include('../partials/header.html') %>
+
+    <div class="area">
+        <h1><%= tutorial ? t('tutorial.title') : t('bots.title') %></h1>
+        <p class="bots-copy"><%= tutorial ? t('tutorial.blurb') : t('bots.blurb') %></p>
+
+        <% if (typeof error !== 'undefined' && error) { %>
+            <p class="error"><%= tutorial ? t('tutorial.failed') : t('bots.failed') %></p>
+        <% } %>
+
+        <form action="<%= tutorial ? '/tutorial/start' : '/bots/start' %>" method="post" class="bots-form">
+            <% if (tutorial) { %>
+                <input type="hidden" name="isTutorial" value="true" />
+                <input type="hidden" name="pace" value="quick" />
+            <% } else { %>
+            <label>
+                <%= t('bots.pace') %>
+                <select name="pace">
+                    <option value="quick" selected><%= t('bots.paceQuick') %></option>
+                    <option value="classic"><%= t('bots.paceClassic') %></option>
+                </select>
+            </label>
+            <% } %>
+
+            <label>
+                <%= t('bots.botCount') %>
+                <select name="botCount">
+                    <option value="2" <%= tutorial ? 'selected' : '' %>>2</option>
+                    <option value="3" <%= !tutorial ? 'selected' : '' %>>3</option>
+                    <option value="4">4</option>
+                    <option value="5">5</option>
+                </select>
+            </label>
+
+            <label>
+                <%= t('bots.mapSize') %>
+                <select name="size">
+                    <option value="6" <%= tutorial ? 'selected' : '' %>>6×6</option>
+                    <option value="8" <%= !tutorial ? 'selected' : '' %>>8×8</option>
+                    <option value="10">10×10</option>
+                </select>
+            </label>
+
+            <label>
+                <%= t('player.displayName') %>
+                <input type="text" name="displayName" maxlength="24" placeholder="<%= name %>" />
+            </label>
+
+            <p class="bots-hint"><%= tutorial ? t('tutorial.paceNote') : t('bots.paceNote') %></p>
+
+            <button type="submit"><%= tutorial ? t('tutorial.play') : t('bots.play') %></button>
+        </form>
+    </div>
+</div>
+
+<style>
+    .bots-copy {
+        opacity: 0.85;
+        max-width: 36em;
+        line-height: 1.45;
+        margin-bottom: 18px;
+    }
+
+    .bots-hint {
+        opacity: 0.7;
+        font-size: 0.9em;
+        line-height: 1.4;
+        margin: 0;
+    }
+
+    .bots-form {
+        display: grid;
+        gap: 12px;
+        max-width: 360px;
+    }
+
+    .bots-form label {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .bots-form select,
+    .bots-form input {
+        background: rgba(0, 0, 0, 0.28);
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        color: inherit;
+        padding: 6px 8px;
+        min-width: 140px;
+    }
+
+    .error {
+        color: #ff7b7b;
+    }
+</style>
+
+<%- include('../partials/footer.html') %>
