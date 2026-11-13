@@ -21,6 +21,9 @@ describe('i18n', () => {
         expect(t('de', 'tutorial.title')).toBe('Tutorial');
         expect(t('de', 'debug.title')).toBe('Debug-Konsole');
         expect(t('en', 'debug.subtitle', { name: 'debug_abc' })).toBe('Signed in as debug_abc');
+        expect(t('en', 'debug.stateUnplayed')).toBe('Unplayed');
+        expect(t('en', 'debug.deleteGame')).toBe('Delete match');
+        expect(t('de', 'debug.deleteGame')).toBe('Spiel löschen');
         expect(t('en', 'coach.moveTitle')).toBe('Move');
     });
 

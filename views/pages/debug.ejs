@@ -23,10 +23,11 @@
             <section class="debug-game" data-game-id="<%= game.id %>">
                 <div class="debug-game__head">
                     <h2><%= game.name %></h2>
-                    <span class="debug-pill <%= game.hasStarted ? 'is-live' : 'is-lobby' %>">
-                        <%= game.hasStarted ? t('debug.stateStarted') : t('home.stateLobby') %>
+                    <span class="debug-pill <%= game.isUnplayed ? 'is-lobby' : (game.isFinished ? 'is-finished' : 'is-live') %>">
+                        <%= game.isUnplayed ? t('debug.stateUnplayed') : (game.isFinished ? t('debug.stateFinished') : t('debug.stateStarted')) %>
                     </span>
                     <a class="debug-link" href="/play?game=<%= game.id %>"><%= t('debug.openGame') %></a>
+                    <button type="button" class="debug-delete" data-action="delete-game"><%= t('debug.deleteGame') %></button>
                 </div>
 
                 <div class="debug-grid">
@@ -201,8 +202,17 @@
         color: #fff;
     }
 
+    .debug-pill.is-finished {
+        opacity: 0.75;
+    }
+
     .debug-link {
         margin-left: auto;
+    }
+
+    .debug-delete {
+        border-color: rgba(255, 120, 120, 0.45);
+        color: #ffb4b4;
     }
 
     .debug-grid {
@@ -335,6 +345,14 @@
                                 range: row.querySelector('[name="range"]').value,
                                 sight: row.querySelector('[name="sight"]').value
                             });
+                        } else if (action === 'delete-game') {
+                            const confirmMsg = (typeof window.t === 'function')
+                                ? window.t('debug.deleteConfirm')
+                                : 'Delete this match?';
+                            if (!window.confirm(confirmMsg)) return;
+                            data = await postJson('/debug/games/' + gameId + '/delete');
+                            section.remove();
+                            return;
                         } else {
                             return;
                         }

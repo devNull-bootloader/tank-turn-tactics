@@ -177,4 +177,80 @@ describe('Debug panel', () => {
         expect((await Game.findById(game._id)).turnTimePassed).toBe(1);
         expect((await Player.findById(player._id)).actions).toBe(2);
     });
+
+    it('lists unplayed lobby matches alongside started ones', async () => {
+        const creator = new mongoose.Types.ObjectId();
+        const lobby = await new Game({
+            name: 'debug-lobby',
+            size: { width: 6, height: 6 },
+            creator_id: creator,
+            hasStarted: false
+        }).save();
+
+        const live = await new Game({
+            name: 'debug-live',
+            size: { width: 6, height: 6 },
+            creator_id: creator,
+            hasStarted: true,
+            turnTime: 24,
+            turnTimePassed: 1
+        }).save();
+
+        await new Player({
+            name: 'LobbyHost',
+            game_id: lobby._id,
+            user_id: new mongoose.Types.ObjectId(),
+            position: { x: 0, y: 0 },
+            health: 3,
+            actions: 0
+        }).save();
+
+        const games = await Game.find({});
+        const enriched = await DebugController.enrichGamesForDebug(games);
+        const byName = Object.fromEntries(enriched.map((g) => [g.name, g]));
+
+        expect(byName['debug-lobby']).toBeTruthy();
+        expect(byName['debug-lobby'].isUnplayed).toBe(true);
+        expect(byName['debug-lobby'].hasStarted).toBe(false);
+        expect(byName['debug-live'].isUnplayed).toBe(false);
+        expect(byName['debug-live'].hasStarted).toBe(true);
+        // Unplayed lobbies sort before live matches
+        expect(enriched.findIndex((g) => g.name === 'debug-lobby'))
+            .toBeLessThan(enriched.findIndex((g) => g.name === 'debug-live'));
+    });
+
+    it('deleteGame removes the match and its players', async () => {
+        const game = await new Game({
+            name: 'debug-delete-me',
+            size: { width: 6, height: 6 },
+            creator_id: new mongoose.Types.ObjectId(),
+            hasStarted: false
+        }).save();
+
+        await new Player({
+            name: 'Gone',
+            game_id: game._id,
+            user_id: new mongoose.Types.ObjectId(),
+            position: { x: 0, y: 0 },
+            health: 3,
+            actions: 0
+        }).save();
+
+        const req = { params: { gameId: game._id.toString() }, body: {} };
+        const res = mockRes();
+        await DebugController.deleteGame(req, res);
+
+        expect(res.statusCode).toBe(200);
+        expect(res.body.ok).toBe(true);
+        expect(await Game.findById(game._id)).toBeNull();
+        expect(await Player.find({ game_id: game._id })).toHaveLength(0);
+    });
+
+    it('deleteGame returns 404 for missing match', async () => {
+        const req = { params: { gameId: new mongoose.Types.ObjectId().toString() }, body: {} };
+        const res = mockRes();
+        await DebugController.deleteGame(req, res);
+        expect(res.statusCode).toBe(404);
+        expect(res.body.ok).toBe(false);
+    });
 });

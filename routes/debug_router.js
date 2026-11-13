@@ -13,6 +13,8 @@ router.post('/games/:gameId/clear-queue', DebugController.clearQueue);
 router.post('/games/:gameId/grant-ap', DebugController.grantAp);
 router.post('/games/:gameId/turn', DebugController.setTurnProgress);
 router.post('/games/:gameId/settings', DebugController.updateSettings);
+router.post('/games/:gameId/delete', DebugController.deleteGame);
+router.delete('/games/:gameId', DebugController.deleteGame);
 router.post('/players/:playerId', DebugController.updatePlayer);
 
 module.exports = router;

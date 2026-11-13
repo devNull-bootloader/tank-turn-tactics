@@ -1,7 +1,7 @@
 const Game = require('../models/GameModel.js');
 const Player = require('../models/PlayerModel.js');
 const { performActions, doActionQueue } = require('../config/game_runner.js');
-const { editGameRequest } = require('./GameController.js');
+const { editGameRequest, deleteGame } = require('./GameController.js');
 const { displayName } = require('./AuthController.js');
 
 function gameIdParam(req) {
@@ -18,17 +18,22 @@ async function loadGame(gameId) {
     return game;
 }
 
-module.exports.renderDebugPanel = async function renderDebugPanel(req, res) {
-    const games = await Game.find({});
-    const gameList = Array.isArray(games) ? games : [];
-
-    const enriched = await Promise.all(gameList.map(async (game) => {
+/** Enrich every game for the debug panel — including lobbies / unplayed. */
+async function enrichGamesForDebug(gameList) {
+    const list = Array.isArray(gameList) ? gameList : [];
+    const enriched = await Promise.all(list.map(async (game) => {
         const players = await Player.find({ game_id: game._id });
         const playerArr = Array.isArray(players) ? players : [];
+        const alive = playerArr.filter((p) => (p.health || 0) > 0).length;
+        const hasStarted = !!game.hasStarted;
+        const isFinished = hasStarted && alive <= 1;
         return {
             id: game._id && game._id.toString ? game._id.toString() : String(game._id || game.id),
             name: game.name,
-            hasStarted: !!game.hasStarted,
+            hasStarted,
+            isFinished,
+            // Unplayed = not yet started (lobby)
+            isUnplayed: !hasStarted,
             turnTime: game.turnTime,
             turnTimePassed: game.turnTimePassed,
             actionsPerInterval: game.actionsPerInterval,
@@ -49,6 +54,21 @@ module.exports.renderDebugPanel = async function renderDebugPanel(req, res) {
         };
     }));
 
+    // Unplayed lobbies first so they are not buried under live matches
+    enriched.sort((a, b) => {
+        const rank = (g) => (g.isUnplayed ? 0 : g.isFinished ? 2 : 1);
+        return rank(a) - rank(b);
+    });
+    return enriched;
+}
+
+module.exports.enrichGamesForDebug = enrichGamesForDebug;
+
+module.exports.renderDebugPanel = async function renderDebugPanel(req, res) {
+    // Include all matches (started + unplayed lobbies); do not filter by hasStarted
+    const games = await Game.find({});
+    const enriched = await enrichGamesForDebug(games);
+
     res.render('pages/debug', {
         user: displayName(req.user),
         isDebug: !!(req.user && req.user.debug),
@@ -56,6 +76,25 @@ module.exports.renderDebugPanel = async function renderDebugPanel(req, res) {
         intervalMode: process.env.INTERVAL_MODE || 'hour',
         games: enriched
     });
+};
+
+/** Delete a match and its players. Debug/admin only (router uses isDebug). */
+module.exports.deleteGame = async function deleteGameRequest(req, res) {
+    try {
+        const gameId = gameIdParam(req);
+        await loadGame(gameId);
+        const results = await deleteGame(gameId);
+        if (results.status !== 200) {
+            return res.status(results.status || 500).json({
+                ok: false,
+                message: results.message ? String(results.message) : 'Delete failed'
+            });
+        }
+        return res.json({ ok: true, deleted: gameId });
+    } catch (err) {
+        console.error('[debug] deleteGame', err);
+        return res.status(err.status || 500).json({ ok: false, message: err.message || String(err) });
+    }
 };
 
 /** Advance one scheduler tick (hour/minute) for a single game. */
